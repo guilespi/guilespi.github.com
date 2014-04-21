@@ -1,0 +1,533 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: Programming | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/programming/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2014-04-21T19:02:31-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Can you make a native app using Phonegap?]]></title>
+    <link href="http://guilespi.github.com/blog/2013/02/10/can-you-make-a-native-app-using-phonegap/"/>
+    <updated>2013-02-10T21:02:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2013/02/10/can-you-make-a-native-app-using-phonegap</id>
+    <content type="html"><![CDATA[<p>I've been looking at Phonegap since it started, long before <a href="http://news.cnet.com/8301-30685_3-20114857-264/adobe-buys-phonegap-typekit-for-better-web-tools/">Adobe bought it</a> in a desperate attempt to destroy it.</p>
+
+<p>Up until now, I never got the chance to make something with it, but always had the doubt how good or bad the applications you could create were.</p>
+
+<p>Last week I had an opportunity to take a look under the hood, and made the source code available <a href="https://github.com/guilespi/phonegap-ios-plugins">on GitHub</a>.</p>
+
+<p>The big question was, can you make native apps using Phonegap?</p>
+
+<p><strong> What you mean by native? </strong></p>
+
+<p>According to <a href="http://stackoverflow.com/questions/4656475/iphone-native-application-vs-web-application">this guy</a> in order to make native IOS applications you need to program in Objective-C.</p>
+
+<p>I say that's misleading.</p>
+
+<p>Native applications are applications that run on the phone and provide a <code>native experience</code>, for which I understand at least the following treats:</p>
+
+<ul>
+<li>Can access all of the device API, address book, camera, etc.</li>
+<li>Access to local storage</li>
+<li>Zero latency feedback</li>
+<li>Interoperability with other phone applications</li>
+<li>UX should respect the device culture and guidelines
+,
+If you have those, why should you care about the language the app is written in?</li>
+</ul>
+
+
+<p><strong> The wrong reason to use Phonegap </strong></p>
+
+<p>At first sight you may think that the main reason to use Phonegap is program once, run everywhere.</p>
+
+<p>Wrong.</p>
+
+<p>In order to provide a native experience you will need to design the UX of your app for every platform you're targeting, so at least the UX/UI code will be different.</p>
+
+<p>Obviously you <em>can</em> use the same UI for all the platforms, but unless the purpose of your app is to alienate your users I wouldn't try it.</p>
+
+<p>Software should behave as the user expects it to behave, you would not create new affordances for the sake of creativity, don't do it for the sake of saving money,
+because it ain't cheaper in the long run.</p>
+
+<p>So, no matter what you're thinking about doing, save some time to read the UX/UI guidelines for each mobile platform you're targeting.</p>
+
+<p>The great <a href="http://www.infoq.com/presentations/Product-Engineering">Mike Lee</a> would tell you that you even need a different team for each of those platforms.</p>
+
+<p><strong> WTF is Phonegap? </strong></p>
+
+<p>You know the tagline <em>"easily create apps using web technology you love"</em>, does it mean the only thing you need to know is HTML and Javascript?</p>
+
+<p>Of course not.</p>
+
+<p>Phonegap is an extensible framework for creating web applications, with the following properties:</p>
+
+<ul>
+<li>The framework exposes an API to access the device different components
+
+<ul>
+<li>Accelerometer</li>
+<li>Camera</li>
+<li>Compass</li>
+<li>Contacts</li>
+<li>Etc.</li>
+</ul>
+</li>
+<li>The API is the same for the different supported platforms
+
+<ul>
+<li>IOS 4.2+</li>
+<li>Android 2.1+</li>
+<li>Blackberry OS6+</li>
+</ul>
+</li>
+<li>You must code your program using HTML and Javascript.</li>
+</ul>
+
+
+<p>You can think of it as a native host that lets you write your application in Javascript, abstracting the native layer components behind a uniform API. That's all.</p>
+
+<p>So you'll end up creating your app inside XCode, dealing with code signing nightmares and taking a lot of walks inside the Apple walled gardens.</p>
+
+<p><img class="center" src="/images/blog/phonegapide.png" width="680" height="780" title="'Phonegap Application Inside XCODE'" ></p>
+
+<p>And you <em>will</em> need to learn the Phonegap API.</p>
+
+<p><strong> It doesn't have to be 100% HTML </strong></p>
+
+<p>The first reaction is to think that since Phonegap uses a webview you will have to create your application using only HTML, but it's not the case.</p>
+
+<p>Phonegap supports <a href="https://github.com/phonegap/phonegap-plugins">plugins</a>, which is a mechanism for exposing different native features not already exposed in Phonegap API.
+So you can create more native plugins and expose them to javascript, where javascript works as the <em>glue</em> that blends
+together the native controls but not necessarily is used to create all the UI.</p>
+
+<p>The most common example is the TabBar and NavigationBar in IOS, plugins for those already exist, and lets you design a more native experience than the one
+you would get using only HTML.</p>
+
+<p><img class="center" src="/images/blog/phonegapplugins.png" width="280" height="480" title="'Phonegap TabBar and NavigationBar Plugins'" ></p>
+
+<p>Notice the <code>Back</code> button in there, it's just a custom button with the back text. If you want to create an arrow like back button you'll need to go
+down the <a href="http://stackoverflow.com/questions/227078/creating-a-left-arrow-button-like-uinavigationbars-back-style-on-a-uitoolba">same path</a> as if you were doing Objective-C IOS development.</p>
+
+<p><strong> Mobile Frameworks </strong></p>
+
+<p>There are many mobile frameworks available <a href="http://www.markus-falk.com/mobile-frameworks-comparison-chart/">out there to be compared</a>.</p>
+
+<p>Among the most well known are <a href="http://jquerymobile.com/">jQuery Mobile</a> and <a href="http://www.sencha.com/products/touch/">Sencha Touch</a>. JQM development being more <em>web like</em>, something to consider if your team is already
+comfortable with HTML, Sencha generates its own DOM based on Javascript objects 100% programatically.</p>
+
+<p>I haven't dig deep enough in order to write a complete evaluation, you may found some interesting ones <a href="http://altabel.wordpress.com/2012/12/14/mobile-web-app-frameworks-review-sencha-touch-vs-jquery-mobile/">here</a>, <a href="http://www.collabera.com/blog/default/2012/12/12/1355310199068.html">here</a> and <a href="http://blog.roveb.com/post/17259708005/our-experience-with-jquery-mobile-and-sencha-touch">here</a>.</p>
+
+<p>Almost everybody agrees in one important point:</p>
+
+<p>JQM is sluggish and transitions doesn't feel native enough, something I easily verified testing the app in my IPad I, even the <code>slider</code> was sluggish.</p>
+
+<p><strong> Using Phonegap Plugins </strong></p>
+
+<p>Plugins are usually composed of two parts:</p>
+
+<ul>
+<li>The native bridge between Objective-C and Javascript</li>
+<li>The Javascript exposing the plugin</li>
+</ul>
+
+
+<p>Usually you'll need to copy the <code>m</code> and <code>h</code> plugin files to the <code>Plugins</code> directory of your project, you will also need to declare the plugins
+being used in the <code>config.xml</code> project file.</p>
+
+<p><code>xml
+ &lt;plugins&gt;
+   ...  
+  &lt;plugin name="TabBar" value="TabBar"/&gt;
+  &lt;plugin name="NavigationBar" value="NavigationBar"/&gt;
+  ...
+ &lt;/plugins&gt;
+</code></p>
+
+<p>And then include the Javascript files in your <code>index.html</code>.</p>
+
+<p><code>javascript
+ &lt;script type="text/javascript" src="js/TabBar.js"&gt;&lt;/script&gt;
+ &lt;script type="text/javascript" src="js/NavigationBar.js"&gt;&lt;/script&gt;
+</code></p>
+
+<p>Using the native plugins from your applications is straightforward, you initialize, create, setup and show the buttons you want.</p>
+
+<p>```javascript</p>
+
+<p>  plugins.navigationBar.init();
+  plugins.tabBar.init();</p>
+
+<p>  plugins.navigationBar.create();
+  plugins.tabBar.create()</p>
+
+<p>  plugins.navigationBar.setTitle("Navigation Bar")
+  plugins.navigationBar.showLeftButton()
+  plugins.navigationBar.showRightButton()
+  plugins.navigationBar.setupLeftButton("Back",</p>
+
+<pre><code>                                    "",
+                                    function() {
+                                      $(window).unbind("scrollstop");
+                                      history.back();
+                                      return false;
+                                    });
+</code></pre>
+
+<p>  plugins.navigationBar.setupRightButton(</p>
+
+<pre><code>                                     "Alert",
+                                     "barButton:Bookmarks",
+                                     function() {
+                                      alert("right nav button tapped")
+                                     });
+</code></pre>
+
+<p>  plugins.navigationBar.show()</p>
+
+<p>  plugins.tabBar.createItem("contacts", "", "tabButton:Contacts", {onSelect: app.loadNews});
+  plugins.tabBar.createItem("recents", "", "tabButton:Recents")
+  plugins.tabBar.createItem("another", "Branches", "www/images/map-marker.png",</p>
+
+<pre><code>                                    {
+                                      onSelect: function() {
+                                                        app.loadMap();
+                                                    }});
+</code></pre>
+
+<p>  plugins.tabBar.show()
+  plugins.tabBar.showItems("contacts", "recents", "another")</p>
+
+<p>```</p>
+
+<p>Using this strategy lets you extend your app for a more native experience exposing to javascript even custom controls you may design.
+This way you can have some members of your team focused on the native code of the app and exposing the building blocks to the web developers <em>assembling</em> the pieces.</p>
+
+<p><img class="center" src="/images/blog/phonegapplugincomparison.png" width="280" height="480" title="'Phonegap TabBar comparison against HTML'" ></p>
+
+<p>As you see in the last image, the TabBar is shown in the native version and the HTML version side-by-side. The HTML version was created using jQuery Mobile.</p>
+
+<p><strong> Debugging is hell </strong></p>
+
+<p>Well maybe it's not hell, but it's not a pleasant experience either.</p>
+
+<p>If you include the following line in your html using your own id:</p>
+
+<p>```javascript</p>
+
+<script src="http://debug.phonegap.com/target/target-script-min.js#guilespi"></script>
+
+
+<p>```</p>
+
+<p>You'll have easy access to debug your app using <a href="http://people.apache.org/~pmuellr/weinre/docs/latest/">weinre</a> without the need to set it up, at least it's good for HTML inspection.</p>
+
+<p><img class="center" src="/images/blog/weinredebug.png" width="680" height="780" title="'Weinre Debugging inside Chrome'" ></p>
+
+<p>If you want to debug javascript, you'll certainly end up using <code>alert</code> and <code>console.log</code>, even <a href="http://phonegap.com/2011/05/18/debugging-phonegap-javascript/">the guys at Phonegap</a> are recommending the poor's man debugger.</p>
+
+<p>Be ready to waste some of the time you gained by choosing Javascript doing print based debugging.</p>
+
+<p><strong>Update</strong>
+<em>Raymond Camden pointed out in the comments that <a href="http://www.raymondcamden.com/index.cfm/2013/1/21/Did-you-know--Safari-Remote-Debugging-and-PhoneGap">a better approach to debugging exists</a>, specially with Safari and IOS6</em></p>
+
+<p><strong> Conclusion </strong></p>
+
+<p>Tools are picked for the team, so that's what you should think about when choosing or not to pursue the Phonegap path. If you already have members on your team
+who are great at web development, Phonegap may be an option, certainly it's fast for prototyping and seems to be a great asset for product discovery and validation.</p>
+
+<p>If charging for your app is among your goals, I wouldn't pick Phonegap or any other framework that uses the webview renderer as the main application.
+Also, for most tasks the Javascript VM would be alright, but if you have inner loops cpu intensive, such as in game development, using Phonegap it's not really an option.</p>
+
+<p>Reviewing the main points considered to categorize a mobile application as native, web frameworks will provide you a sub-par experience regarding feedback,
+latency and usability. Using the Phonegap plugins to avoid it will only go so far before the cost being so high you'll better be programming in Java or Objective-C anyway.</p>
+
+<p>If you still have doubts, <a href="https://github.com/guilespi/phonegap-ios-plugins">fork the code</a> and give yourself a try.</p>
+
+<p><em>And don't forget to follow me on <a href="http://www.twitter.com/guilespi">twitter</a></em></p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Build yourself a dialer with Clojure and Asterisk]]></title>
+    <link href="http://guilespi.github.com/blog/2013/01/29/build-yourself-a-dialer-with-clojure-and-asterisk/"/>
+    <updated>2013-01-29T17:05:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2013/01/29/build-yourself-a-dialer-with-clojure-and-asterisk</id>
+    <content type="html"><![CDATA[<p>There are some really <a href="http://www.twilio.com">nice</a> <a href="http://plivo.com/">alternatives</a> out there if you want your application to be able to make a call or send a SMS.</p>
+
+<p>But the truth is sometimes you don't want to rely on <code>the cloud</code> for your latency-sensitive communications, you already have communications infrastructure
+you want to reuse, or you have such a volume of calls to make that it's cheaper for you to roll your own solution.</p>
+
+<p>So I will show you a DIY guide to roll your own dialer using Clojure and <a href="http://www.asterisk.org/">Asterisk</a>, the self proclaimed PBX &amp; Telephony Toolkit.</p>
+
+<p><strong> What is a Dialer </strong></p>
+
+<p>If you ever received a spam call from someone trying to sell you something, it was probably made by an automated dialer.
+The purpose is to reach the most possible people in the least time, optimizing resources.</p>
+
+<p>Sometimes it's someone selling Viagra, but hopefully it's used for higher purposes such as massive notification of upcoming emergencies.</p>
+
+<p><strong> Integrating with Asterisk </strong></p>
+
+<p>Asterisk has a lot if integration alternatives, custom dial-plans, AGI scripting, outgoing call spooling, or you can write your own low-level C module,
+each strategy serves its purpose.</p>
+
+<p>For this scenario I've decided to show you an integration with Asterisk using the <a href="http://www.voip-info.org/wiki/view/Asterisk+manager+API">Asterisk Manager API</a>,
+which allows for remote command execution and event-handling.</p>
+
+<p>I've written a binding for Clojure called <a href="https://github.com/guilespi/clj-asterisk">clj-asterisk</a> to sit on top of the low-level text based protocol.</p>
+
+<p><strong> Making a Call </strong></p>
+
+<p>The <code>clj-asterisk</code> binding map against the Asterisk API is straightforward, so checking against the <a href="http://www.voip-info.org/wiki/view/Asterisk+Manager+API+Action+Originate">Originate Action</a> which is the
+one we need to create an outgoing call.</p>
+
+<p><code>
+Action: Originate
+Channel: SIP/101test
+Context: default
+Exten: 8135551212
+Priority: 1
+Callerid: 3125551212
+Timeout: 30000
+Variable: var1=23|var2=24|var3=25
+ActionID: ABC45678901234567890
+</code>
+The corresponding <code>clj-asterisk</code> invocation is:</p>
+
+<p>``` clojure
+(ns call.test
+  (:require [clj-asterisk.manager :as manager]</p>
+
+<pre><code>           [clj-asterisk.events :as events]))
+</code></pre>
+
+<p>(manager/action :Originate {:Channel "SIP/101test"</p>
+
+<pre><code>                        :Context "default"
+                        :Exten 8135551212
+                        :Priority 1
+                        :Timeout 30000
+                        :CallerID 3125551212
+                        :Variables [var1=23
+                                    var2=24
+                                    var3=25]})
+</code></pre>
+
+<p>```</p>
+
+<p>The <code>ActionID</code> attribute is not specified since it's internally handled by the <code>clj-asterisk</code> library in order to track async responses from Asterisk.</p>
+
+<p><strong> Receiving events </strong></p>
+
+<p>For most telephony related actions blocking is not desirable, since most of the time the PBX is handling a conversation and waiting for
+something to happen, using a blocking scheme is far from the best. You need a strategy to wait for events that tell you when something
+you may be interested in, happens.</p>
+
+<p>In this case we will be interested in the <code>Hangup</code> event in order to know when the call has ended, so the dialing port is free,
+so we can issue a new call. If you're interested in the complete list of events, <a href="http://www.voip-info.org/wiki/view/asterisk+manager+events">it's available on the Asterisk Wiki</a></p>
+
+<p>To receive an event using <code>clj-asterisk</code> you only need to declare the method with the event name you need to handle:</p>
+
+<p>``` clojure
+(ns call.test
+  (:require [clj-asterisk.manager :as manager]</p>
+
+<pre><code>        [clj-asterisk.events :as events]))
+</code></pre>
+
+<p>(defmethod events/handle-event "Hangup"
+  [event context]
+  (println event))</p>
+
+<p>```
+The method passes as parameter the received event and the connection context where the event happened.</p>
+
+<p><strong> The Main Loop </strong></p>
+
+<p>In order to have a proper dialer you will need a main-loop, which life-fulfillment-purpose is:</p>
+
+<ul>
+<li>Decide on which contacts are to be called</li>
+<li>How many ports are free so how many I can dial now</li>
+<li>Handle retrying and error rules</li>
+<li>Dispatching the calls</li>
+</ul>
+
+
+<p>I'm assuming you have some data storage to retrieve the contacts to be dialed and will share those details in a later post,
+I will focus now only in the dialing strategy.</p>
+
+<p>``` clojure
+(defn process
+  "Loops until all contacts for a notification are reached or finally
+   cancelled"
+  [notification context]
+  (let [total-ports (get-available-ports notification)</p>
+
+<pre><code>    contact-list (model/expand-rcpt notification)]
+(loop [remaining contact-list pending-contacts []]
+  (or (seq remaining)
+       (seq pending-contacts))
+         (do
+           (let [pending (filter (comp not realized?) pending-contacts)
+                 finished (filter realized? pending-contacts)
+                 failed (filter
+                         (fn [r] (not (contains? #{"CONNECTED" "CANCELLED"} (:status @r))))
+                         finished)
+                 free-ports (- total-ports (count pending))
+                 contacts (take free-ports remaining)
+                 dialing (dispatch-calls context notification contacts)]
+             (println (format "Pending %s Finished %s Failed %s Free Ports %s Dispatched %s"
+                              (count pending) (count finished) (count failed) free-ports
+                              (count dialing)))
+             (Thread/sleep 100)
+             (recur (concat (drop free-ports remaining) (map :contact failed))
+                    (concat pending dialing)))))))
+</code></pre>
+
+<p>```</p>
+
+<p>Lets go piece by piece...</p>
+
+<p>You wanna know how many ports are available to dial, for instance you may have only 10 outgoing lines to be used.</p>
+
+<p><code>clojure
+total-ports (get-available-ports notification)
+</code>
+You wanna know the recipients to be reached.</p>
+
+<p><code>clojure
+contact-list (model/expand-rcpt notification)
+</code></p>
+
+<p>Then you wanna know the status of the contacts you're already dialing and waiting for an answer or for the call to finish.</p>
+
+<p>``` clojure
+let [pending (filter (comp not realized?) pending-contacts)</p>
+
+<pre><code> finished (filter realized? pending-contacts)
+ failed (filter
+              (fn [r] (not (contains? #{"CONNECTED" "CANCELLED"} (:status @r))))
+              finished)
+ free-ports (- total-ports (count pending))
+</code></pre>
+
+<p><code>``
+Here pending-contacts is a list of [futures][10], the contacts being currently dialed. Since we don't wanna block waiting for the answer the</code>realized?<code>
+function is used in order to count how many of them are finished and filter them. If the finish status is not</code>CONNECTED<code>or</code>CANCELLED<code>
+we assume the contact has failed and we need to issue a retry for those, typically the</code>BUSY<code>and</code>NO ANSWER` statuses.</p>
+
+<p>Then, given the total available ports minus the already being dialed contacts, a new batch of contacts is dialed</p>
+
+<p><code>clojure
+contacts (take free-ports remaining)
+dialing (dispatch-calls context notification contacts)
+</code></p>
+
+<p>The <code>dispatch-calls</code> function is pretty straightforward, it just async calls each contact of the list.</p>
+
+<p><code>clojure
+(defn dispatch-calls
+  "Returns the list of futures of each call thread (one p/contact)"
+  [context notification contacts]
+  (map #(future (call context notification %)) contacts))
+</code></p>
+
+<p>Finally the call function issues the request against the Asterisk PBX and saves the result for further tracking or analytics.</p>
+
+<p>``` clojure</p>
+
+<p>(defn call
+  "Call a contact and wait till the call ends.
+   Function returns the hangup event or nil if timedout"
+  [context notification contact]
+  (manager/with-connection context</p>
+
+<pre><code>(let [trunk (model/get-trunk notification)
+      call-id (.toString (java.util.UUID/randomUUID))
+      prom (manager/set-user-data! call-id (promise))
+      response (manager/action :Originate
+                               {:Channel (format "%s/%s/%s"
+                                                 (:technology trunk)
+                                                 (:number trunk)
+                                                 (:address contact))
+                                :Context (:context trunk)
+                                :Exten (:extension trunk)
+                                :Priority (:priority trunk)
+                                :Timeout 60000
+                                :CallerID (:callerid trunk)
+                                :Variables [(format "MESSAGE=%s" (:message notification))
+                                            (format "CALLID=%s" call-id)]})]
+  (model/save-result notification
+                     contact
+                     (deref prom 200000 {:error ::timeout})))))
+</code></pre>
+
+<p>```</p>
+
+<p>The tricky part here is that it's impossible to know before-hand the call-id Asterisk is going to use for our newly created call,
+so we need a way to <em>mark</em> our call and relate to it later when an event is received, we do that using the call variable <code>CALLID</code>
+which is a <code>guid</code> created for each new call.</p>
+
+<p>Our call creating function will wait on a <code>promise</code> until the call ends, something we will <code>deliver</code> in the Hangup event as shown here:</p>
+
+<p>```clojure</p>
+
+<p>;; Signal the end of the call to the waiting promise in order to
+;; release the channel
+(defmethod events/handle-event "Hangup"
+  [event context]
+  (println event)
+  (manager/with-connection context</p>
+
+<pre><code>(let [unique-id (:Uniqueid event)
+      call-id (manager/get-user-data unique-id)
+      prom (manager/get-user-data call-id)]
+  (println (format "Hanging up call %s with unique id %s" call-id unique-id))
+  (deliver prom event)
+  (manager/remove-user-data! call-id) ;;FIX: this should be done
+  ;;on the waiting side or promise may get lost
+  (manager/remove-user-data! unique-id))))
+</code></pre>
+
+<p>;; When CALLID is set, relate it to the call unique-id
+;; to be used later in hangup detection
+;;
+;; The context has the following info inside:
+;;   callid => promise
+;;   Uniqueid => callid
+;;
+;; so it's possible to deliver a response to someone waiting
+;; on the callid promise
+(defmethod events/handle-event "VarSet"
+  [event context]
+  (when (= (:Variable event) "CALLID")</p>
+
+<pre><code>(manager/with-connection context
+  (println (format "Setting data %s match %s" (:Uniqueid event) (:Value event)))
+  (manager/set-user-data! (:Uniqueid event) (:Value event)))))
+</code></pre>
+
+<p>```</p>
+
+<p>It seems more convoluted than what it actually is, when the <code>CALLID</code> variable is set we receive an event that allows the mapping between call-id and
+Asterisk UniqueId to be done. Then when the <code>Hangup</code> occurs we can find the promise to be delivered and let the <code>call</code> function happily end.</p>
+
+<p>Keep tuned for part II, when I will publish the data model and the complete running Dialer.</p>
+
+<p><a href="https://gist.github.com/4666926">Here</a> is the gist with the code of the current post.</p>
+
+<p><em>While you wait, you can follow me on <a href="http://www.twitter.com/guilespi">Twitter</a>!</em></p>
+]]></content>
+  </entry>
+  
+</feed>

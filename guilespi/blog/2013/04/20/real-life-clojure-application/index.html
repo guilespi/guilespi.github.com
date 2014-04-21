@@ -1,0 +1,300 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Real Life Clojure Application - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="When a language is going through its maturity process, there&#8217;s always the need for sample code and applications to look at, design patterns, &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">Real Life Clojure Application</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-04-20T17:56:00-03:00" pubdate data-updated="true">Apr 20<span>th</span>, 2013</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>When a language is going through its maturity process, there&#8217;s always the need for sample code and applications to look at, design patterns,
+coding guidelines, best libraries, you name it, you usually get those looking at the source code of others.</p>
+
+<p>That is what really builds community, having a common language, besides the <em>language</em>.</p>
+
+<p>Clojure&#8217;s been going through this phenomenon for the last years, as you see <a href="http://stackoverflow.com/questions/329221/medium-size-clojure-sample-application">in this question</a> from 2008 and <a href="http://stackoverflow.com/questions/3628958/good-clojure-code-examples">this question</a> still being answered in 2012.</p>
+
+<p>This year I made a real life full application in Clojure so I&#8217;ve spent some time deciding on many strategies,
+where to put which code, how to test, best libraries to use and what not.</p>
+
+<p>So I decided to put <a href="https://github.com/guilespi/notify-me">the source code</a> online, not only because I think it may help someone,
+but hopefully somebody will come up and help me improve what it&#8217;s done in one way or another, it&#8217;s certainly <em>far</em> from perfect.</p>
+
+<p>In case you wonder, it&#8217;s an application for automatic call and sms dispatching.</p>
+
+<p><img class="center" src="/images/blog/notifyme.png" width="480" height="580" title="'Notify Me Blaster Application'" ></p>
+
+<p>Among other things, you&#8217;ll find inside:</p>
+
+<ul>
+<li>Web development using <a href="https://github.com/ring-clojure/ring">ring</a>, <a href="https://github.com/weavejester/compojure">compojure</a> and <a href="https://github.com/weavejester/hiccup">hiccup</a>.</li>
+<li>Client side <em>almost</em> entirely done in <a href="https://github.com/clojure/clojurescript">clojurescript</a>.</li>
+<li>Authentication and authorization using <a href="https://github.com/cemerick/friend">friend</a>.</li>
+<li>Database access using both <a href="https://github.com/clojure/java.jdbc">jdbc</a> and <a href="https://github.com/korma/Korma">korma</a>.</li>
+<li>Async jobs using <a href="https://github.com/michaelklishin/quartzite">quartz</a> for call and sms dispatching.</li>
+<li>Unit tests using <a href="https://github.com/marick/Midje">midje</a>.</li>
+<li>Chart drawing using <a href="https://github.com/liebke/incanter">incanter</a>.</li>
+<li>Asterisk telephony integration using my own <a href="https://github.com/guilespi/clj-asterisk">clj-asterisk</a> bindings.</li>
+<li>Deploy configuration using <a href="https://github.com/pallet">pallet</a> <em>(not yet finished)</em>.</li>
+</ul>
+
+
+<p><em>If you like it say hi! I&#8217;m <a href="http://www.twitter.com/guilespi">guilespi</a></em></p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-04-20T17:56:00-03:00" pubdate data-updated="true">Apr 20<span>th</span>, 2013</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/clojure/'>clojure</a>, <a class='category' href='/blog/categories/programming/'>programming</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application/" data-via="" data-counturl="http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2013/02/11/when-should-you-personally-decline-a-job-applicant/" title="Previous Post: When should you personally decline a job applicant?">&laquo; When should you personally decline a job applicant?</a>
+      
+      
+        <a class="basic-alignment right articlenav" href="/blog/2013/07/05/making-wealth-by-trusting-people/" title="Next Post: Making wealth by trusting people">Making wealth by trusting people &raquo;</a>
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What's so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen's club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application/';
+        var disqus_url = 'http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

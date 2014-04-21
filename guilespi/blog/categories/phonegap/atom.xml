@@ -1,0 +1,259 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: Phonegap | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/phonegap/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2014-04-21T19:02:31-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Can you make a native app using Phonegap?]]></title>
+    <link href="http://guilespi.github.com/blog/2013/02/10/can-you-make-a-native-app-using-phonegap/"/>
+    <updated>2013-02-10T21:02:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2013/02/10/can-you-make-a-native-app-using-phonegap</id>
+    <content type="html"><![CDATA[<p>I've been looking at Phonegap since it started, long before <a href="http://news.cnet.com/8301-30685_3-20114857-264/adobe-buys-phonegap-typekit-for-better-web-tools/">Adobe bought it</a> in a desperate attempt to destroy it.</p>
+
+<p>Up until now, I never got the chance to make something with it, but always had the doubt how good or bad the applications you could create were.</p>
+
+<p>Last week I had an opportunity to take a look under the hood, and made the source code available <a href="https://github.com/guilespi/phonegap-ios-plugins">on GitHub</a>.</p>
+
+<p>The big question was, can you make native apps using Phonegap?</p>
+
+<p><strong> What you mean by native? </strong></p>
+
+<p>According to <a href="http://stackoverflow.com/questions/4656475/iphone-native-application-vs-web-application">this guy</a> in order to make native IOS applications you need to program in Objective-C.</p>
+
+<p>I say that's misleading.</p>
+
+<p>Native applications are applications that run on the phone and provide a <code>native experience</code>, for which I understand at least the following treats:</p>
+
+<ul>
+<li>Can access all of the device API, address book, camera, etc.</li>
+<li>Access to local storage</li>
+<li>Zero latency feedback</li>
+<li>Interoperability with other phone applications</li>
+<li>UX should respect the device culture and guidelines
+,
+If you have those, why should you care about the language the app is written in?</li>
+</ul>
+
+
+<p><strong> The wrong reason to use Phonegap </strong></p>
+
+<p>At first sight you may think that the main reason to use Phonegap is program once, run everywhere.</p>
+
+<p>Wrong.</p>
+
+<p>In order to provide a native experience you will need to design the UX of your app for every platform you're targeting, so at least the UX/UI code will be different.</p>
+
+<p>Obviously you <em>can</em> use the same UI for all the platforms, but unless the purpose of your app is to alienate your users I wouldn't try it.</p>
+
+<p>Software should behave as the user expects it to behave, you would not create new affordances for the sake of creativity, don't do it for the sake of saving money,
+because it ain't cheaper in the long run.</p>
+
+<p>So, no matter what you're thinking about doing, save some time to read the UX/UI guidelines for each mobile platform you're targeting.</p>
+
+<p>The great <a href="http://www.infoq.com/presentations/Product-Engineering">Mike Lee</a> would tell you that you even need a different team for each of those platforms.</p>
+
+<p><strong> WTF is Phonegap? </strong></p>
+
+<p>You know the tagline <em>"easily create apps using web technology you love"</em>, does it mean the only thing you need to know is HTML and Javascript?</p>
+
+<p>Of course not.</p>
+
+<p>Phonegap is an extensible framework for creating web applications, with the following properties:</p>
+
+<ul>
+<li>The framework exposes an API to access the device different components
+
+<ul>
+<li>Accelerometer</li>
+<li>Camera</li>
+<li>Compass</li>
+<li>Contacts</li>
+<li>Etc.</li>
+</ul>
+</li>
+<li>The API is the same for the different supported platforms
+
+<ul>
+<li>IOS 4.2+</li>
+<li>Android 2.1+</li>
+<li>Blackberry OS6+</li>
+</ul>
+</li>
+<li>You must code your program using HTML and Javascript.</li>
+</ul>
+
+
+<p>You can think of it as a native host that lets you write your application in Javascript, abstracting the native layer components behind a uniform API. That's all.</p>
+
+<p>So you'll end up creating your app inside XCode, dealing with code signing nightmares and taking a lot of walks inside the Apple walled gardens.</p>
+
+<p><img class="center" src="/images/blog/phonegapide.png" width="680" height="780" title="'Phonegap Application Inside XCODE'" ></p>
+
+<p>And you <em>will</em> need to learn the Phonegap API.</p>
+
+<p><strong> It doesn't have to be 100% HTML </strong></p>
+
+<p>The first reaction is to think that since Phonegap uses a webview you will have to create your application using only HTML, but it's not the case.</p>
+
+<p>Phonegap supports <a href="https://github.com/phonegap/phonegap-plugins">plugins</a>, which is a mechanism for exposing different native features not already exposed in Phonegap API.
+So you can create more native plugins and expose them to javascript, where javascript works as the <em>glue</em> that blends
+together the native controls but not necessarily is used to create all the UI.</p>
+
+<p>The most common example is the TabBar and NavigationBar in IOS, plugins for those already exist, and lets you design a more native experience than the one
+you would get using only HTML.</p>
+
+<p><img class="center" src="/images/blog/phonegapplugins.png" width="280" height="480" title="'Phonegap TabBar and NavigationBar Plugins'" ></p>
+
+<p>Notice the <code>Back</code> button in there, it's just a custom button with the back text. If you want to create an arrow like back button you'll need to go
+down the <a href="http://stackoverflow.com/questions/227078/creating-a-left-arrow-button-like-uinavigationbars-back-style-on-a-uitoolba">same path</a> as if you were doing Objective-C IOS development.</p>
+
+<p><strong> Mobile Frameworks </strong></p>
+
+<p>There are many mobile frameworks available <a href="http://www.markus-falk.com/mobile-frameworks-comparison-chart/">out there to be compared</a>.</p>
+
+<p>Among the most well known are <a href="http://jquerymobile.com/">jQuery Mobile</a> and <a href="http://www.sencha.com/products/touch/">Sencha Touch</a>. JQM development being more <em>web like</em>, something to consider if your team is already
+comfortable with HTML, Sencha generates its own DOM based on Javascript objects 100% programatically.</p>
+
+<p>I haven't dig deep enough in order to write a complete evaluation, you may found some interesting ones <a href="http://altabel.wordpress.com/2012/12/14/mobile-web-app-frameworks-review-sencha-touch-vs-jquery-mobile/">here</a>, <a href="http://www.collabera.com/blog/default/2012/12/12/1355310199068.html">here</a> and <a href="http://blog.roveb.com/post/17259708005/our-experience-with-jquery-mobile-and-sencha-touch">here</a>.</p>
+
+<p>Almost everybody agrees in one important point:</p>
+
+<p>JQM is sluggish and transitions doesn't feel native enough, something I easily verified testing the app in my IPad I, even the <code>slider</code> was sluggish.</p>
+
+<p><strong> Using Phonegap Plugins </strong></p>
+
+<p>Plugins are usually composed of two parts:</p>
+
+<ul>
+<li>The native bridge between Objective-C and Javascript</li>
+<li>The Javascript exposing the plugin</li>
+</ul>
+
+
+<p>Usually you'll need to copy the <code>m</code> and <code>h</code> plugin files to the <code>Plugins</code> directory of your project, you will also need to declare the plugins
+being used in the <code>config.xml</code> project file.</p>
+
+<p><code>xml
+ &lt;plugins&gt;
+   ...  
+  &lt;plugin name="TabBar" value="TabBar"/&gt;
+  &lt;plugin name="NavigationBar" value="NavigationBar"/&gt;
+  ...
+ &lt;/plugins&gt;
+</code></p>
+
+<p>And then include the Javascript files in your <code>index.html</code>.</p>
+
+<p><code>javascript
+ &lt;script type="text/javascript" src="js/TabBar.js"&gt;&lt;/script&gt;
+ &lt;script type="text/javascript" src="js/NavigationBar.js"&gt;&lt;/script&gt;
+</code></p>
+
+<p>Using the native plugins from your applications is straightforward, you initialize, create, setup and show the buttons you want.</p>
+
+<p>```javascript</p>
+
+<p>  plugins.navigationBar.init();
+  plugins.tabBar.init();</p>
+
+<p>  plugins.navigationBar.create();
+  plugins.tabBar.create()</p>
+
+<p>  plugins.navigationBar.setTitle("Navigation Bar")
+  plugins.navigationBar.showLeftButton()
+  plugins.navigationBar.showRightButton()
+  plugins.navigationBar.setupLeftButton("Back",</p>
+
+<pre><code>                                    "",
+                                    function() {
+                                      $(window).unbind("scrollstop");
+                                      history.back();
+                                      return false;
+                                    });
+</code></pre>
+
+<p>  plugins.navigationBar.setupRightButton(</p>
+
+<pre><code>                                     "Alert",
+                                     "barButton:Bookmarks",
+                                     function() {
+                                      alert("right nav button tapped")
+                                     });
+</code></pre>
+
+<p>  plugins.navigationBar.show()</p>
+
+<p>  plugins.tabBar.createItem("contacts", "", "tabButton:Contacts", {onSelect: app.loadNews});
+  plugins.tabBar.createItem("recents", "", "tabButton:Recents")
+  plugins.tabBar.createItem("another", "Branches", "www/images/map-marker.png",</p>
+
+<pre><code>                                    {
+                                      onSelect: function() {
+                                                        app.loadMap();
+                                                    }});
+</code></pre>
+
+<p>  plugins.tabBar.show()
+  plugins.tabBar.showItems("contacts", "recents", "another")</p>
+
+<p>```</p>
+
+<p>Using this strategy lets you extend your app for a more native experience exposing to javascript even custom controls you may design.
+This way you can have some members of your team focused on the native code of the app and exposing the building blocks to the web developers <em>assembling</em> the pieces.</p>
+
+<p><img class="center" src="/images/blog/phonegapplugincomparison.png" width="280" height="480" title="'Phonegap TabBar comparison against HTML'" ></p>
+
+<p>As you see in the last image, the TabBar is shown in the native version and the HTML version side-by-side. The HTML version was created using jQuery Mobile.</p>
+
+<p><strong> Debugging is hell </strong></p>
+
+<p>Well maybe it's not hell, but it's not a pleasant experience either.</p>
+
+<p>If you include the following line in your html using your own id:</p>
+
+<p>```javascript</p>
+
+<script src="http://debug.phonegap.com/target/target-script-min.js#guilespi"></script>
+
+
+<p>```</p>
+
+<p>You'll have easy access to debug your app using <a href="http://people.apache.org/~pmuellr/weinre/docs/latest/">weinre</a> without the need to set it up, at least it's good for HTML inspection.</p>
+
+<p><img class="center" src="/images/blog/weinredebug.png" width="680" height="780" title="'Weinre Debugging inside Chrome'" ></p>
+
+<p>If you want to debug javascript, you'll certainly end up using <code>alert</code> and <code>console.log</code>, even <a href="http://phonegap.com/2011/05/18/debugging-phonegap-javascript/">the guys at Phonegap</a> are recommending the poor's man debugger.</p>
+
+<p>Be ready to waste some of the time you gained by choosing Javascript doing print based debugging.</p>
+
+<p><strong>Update</strong>
+<em>Raymond Camden pointed out in the comments that <a href="http://www.raymondcamden.com/index.cfm/2013/1/21/Did-you-know--Safari-Remote-Debugging-and-PhoneGap">a better approach to debugging exists</a>, specially with Safari and IOS6</em></p>
+
+<p><strong> Conclusion </strong></p>
+
+<p>Tools are picked for the team, so that's what you should think about when choosing or not to pursue the Phonegap path. If you already have members on your team
+who are great at web development, Phonegap may be an option, certainly it's fast for prototyping and seems to be a great asset for product discovery and validation.</p>
+
+<p>If charging for your app is among your goals, I wouldn't pick Phonegap or any other framework that uses the webview renderer as the main application.
+Also, for most tasks the Javascript VM would be alright, but if you have inner loops cpu intensive, such as in game development, using Phonegap it's not really an option.</p>
+
+<p>Reviewing the main points considered to categorize a mobile application as native, web frameworks will provide you a sub-par experience regarding feedback,
+latency and usability. Using the Phonegap plugins to avoid it will only go so far before the cost being so high you'll better be programming in Java or Objective-C anyway.</p>
+
+<p>If you still have doubts, <a href="https://github.com/guilespi/phonegap-ios-plugins">fork the code</a> and give yourself a try.</p>
+
+<p><em>And don't forget to follow me on <a href="http://www.twitter.com/guilespi">twitter</a></em></p>
+]]></content>
+  </entry>
+  
+</feed>

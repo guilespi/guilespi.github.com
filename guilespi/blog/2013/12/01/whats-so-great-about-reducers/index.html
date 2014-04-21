@@ -1,0 +1,459 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>What's so great about Reducers? - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="This post is about Clojure reducers, but what makes them great are the ideas behind the implementation, which may be portable to other languages. So &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2013/12/01/whats-so-great-about-reducers/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">What's So Great About Reducers?</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-12-01T13:25:00-02:00" pubdate data-updated="true">Dec 1<span>st</span>, 2013</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>This post is about Clojure reducers, but what makes them great are the ideas behind the implementation, which may be portable to other languages.</p>
+
+<p>So if you&#8217;re interested in performance don&#8217;t leave just yet.</p>
+
+<p>One of the primary motivators for the reducers library is <a href="http://vimeo.com/6624203">Guy Steele&#8217;s ICFP &#8216;09</a> talk,
+and since I assume you don&#8217;t have one hour to spend verifying I&#8217;m telling you it&#8217;s worth watching,
+I&#8217;ll do my best to summarize it here, which is a post you will probably scan in less than 15 seconds.</p>
+
+<p>One of the main points of the talk is that <strong>the way we&#8217;ve been thinking about programming for the last 50 years isn&#8217;t serving us anymore</strong>.</p>
+
+<p>Why?</p>
+
+<p>Because good sequential code is different from good parallel code.</p>
+
+<h1>Parallel vs. Sequential</h1>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>+------------+--------------------------------------+-------------------------------------------------------------+
+</span><span class='line'>|            |              Sequential              |                          Parallel                           |
+</span><span class='line'>+------------+--------------------------------------+-------------------------------------------------------------+
+</span><span class='line'>| Operations | Minimizes total number of operations | Often performs redundant operations to reduce communication |
+</span><span class='line'>| Space      | Minimize space usage                 | Extra space to permit temporal decoupling                   |
+</span><span class='line'>| Problem    | Linear problem decomposition         | Multiway aggregation of results                             |
+</span><span class='line'>+------------+--------------------------------------+-------------------------------------------------------------+</span></code></pre></td></tr></table></div></figure>
+
+
+<h1>The accumulator loop</h1>
+
+<p>How would you sum all the elements of an array?</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>SUM = 0 
+</span><span class='line'>DO I = 1, 1000000
+</span><span class='line'>   SUM = SUM + X(I)
+</span><span class='line'>END DO</span></code></pre></td></tr></table></div></figure>
+
+
+<p>That&#8217;s right, the accumulator loop, you initialize the accumulator and update the thingy in each iteration step.</p>
+
+<p>But you&#8217;re complecting how you update your sum with how you iterate your collection, ain&#8217;t it?</p>
+
+<p>There&#8217;s a difference between <em>what</em> you do with <em>how</em> you do it. If you say <code>SUM(X)</code> it doesn&#8217;t make promises on the strategy,
+it&#8217;s when you actually implement that SUM that the sequential promise is made.</p>
+
+<p><img class="center" src="/images/blog/sequential_tree.png" width="480" height="580" title="'Sequential Tree'" ></p>
+
+<p>The problem is the computation tree for the sequential strategy, if we remove the looping machinery and leave only the sums,
+there&#8217;s a one million steps delay to get to the final result.</p>
+
+<p>So what&#8217;s the tree you would like to see?</p>
+
+<p><img class="center" src="/images/blog/parallel_tree.png" width="480" height="580" title="'Parallel Tree'" ></p>
+
+<p>And what code you would need to write in order to get that tree? Functional code?</p>
+
+<p>Think again.</p>
+
+<p>Functional code is not the complete answer, since you can write functional code and still have the same problem.</p>
+
+<p>Since linear linked lists are inherently sequential you may be using a reducer and be on the same spot.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nb">reduce + </span><span class="p">(</span><span class="nb">range </span><span class="mi">1</span> <span class="mi">1000000</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We need <em>multiway decomposition</em>.</p>
+
+<h1>Divide and conquer</h1>
+
+<p>Rationale behind multiway decomposition is that we need a list representation that allows for binary decomposition of the list.</p>
+
+<p><img class="center" src="/images/blog/tree_list_representation.png" width="480" height="580" title="'List as Tree'" ></p>
+
+<p>You can obviously have many redundant trees representing the same conceptual list, and there&#8217;s value in redundancy since different trees have different properties.</p>
+
+<h1>Summary</h1>
+
+<ul>
+<li>Don&#8217;t split a problem between first and rest, split in equal pieces.</li>
+<li>Don&#8217;t create a null solution an successively update it, map inputs to singleton solutions and merge tree-wise.</li>
+<li>Combining solutions is trickier than incremental updates.</li>
+<li>Use sequential techniques near the leaves.</li>
+<li>Programs organized for parallelism can be processed in parallel or sequentially.</li>
+<li>Get rid of cons.</li>
+</ul>
+
+
+<h1>Clojure Reducers</h1>
+
+<p>So what are Clojure reducers?</p>
+
+<p>In short, it&#8217;s a library providing a new function <code>fold</code>, which is a parallel <code>reduce+combine</code>
+that shares the same shape with the old sequence based code, main difference been you get to
+provide a <code>combiner</code> function.</p>
+
+<p>Go and read <a href="http://clojure.com/blog/2012/05/08/reducers-a-library-and-model-for-collection-processing.html">this</a> and <a href="http://clojure.com/blog/2012/05/15/anatomy-of-reducer.html">this</a> great posts by Rich Hickey.</p>
+
+<p>Back? Ok&#8230;</p>
+
+<p>As Rich says in his article the accumulator style is not absent but the single initial value
+and the serial execution promises of <code>foldl/r</code> have been abandoned.</p>
+
+<p>For what it&#8217;s worth, I&#8217;ve written in Clojure the <strong>Split a string into words</strong> parallel
+algorithm suggested by Steele <a href="https://gist.github.com/guilespi/7458410">here</a>, performance sucks compared against
+<code>clojure.string/split</code> but it&#8217;s a nice algorithm none the less.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">parallel-words</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">w</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">to-word-list</span>
+</span><span class='line'>   <span class="p">(</span><span class="nf">r/fold</span> <span class="mi">100</span>
+</span><span class='line'>           <span class="nv">combine-states</span>
+</span><span class='line'>           <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">state</span> <span class="nv">char</span><span class="p">]</span>
+</span><span class='line'>             <span class="p">(</span><span class="nf">append-state</span> <span class="nv">state</span> <span class="p">(</span><span class="nf">process-char</span> <span class="nv">char</span><span class="p">)))</span>
+</span><span class='line'>           <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nb">seq </span><span class="nv">w</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>There are a couple interesting things in the code.</p>
+
+<ul>
+<li><code>combine-states</code> is the new combiner function, decides how to combine different splits</li>
+<li><code>100</code> is the size when to stop splitting and do a sequential processing (calls <code>reduce</code> afterwards). Defaults to <code>512</code>.</li>
+<li>The <code>fn</code> is the standard reducing function</li>
+<li>The list is transformed into a <code>vector</code> before processing.</li>
+</ul>
+
+
+<p>Last step is just for the sake of experimentation, and has all to do with the underlying structure for vectors.</p>
+
+<p>Both vectors and maps in Clojure are implemented as trees, which as we saw above, is one of the requirements for multiway decomposition.
+There&#8217;s a <a href="http://hypirion.com/musings/understanding-persistent-vector-pt-1">great article here</a> about Clojure vectors, but key interest point is that it provides
+practically <code>O(1)</code> runtime for <code>subvec</code>, which is how the vector folder <code>foldvec</code> successively splits the input vector before reaching the
+sequential processing size.</p>
+
+<p>So if you look at <a href="https://github.com/clojure/clojure/blob/master/src/clj/clojure/core/reducers.clj#L347-L367">the source code</a> only for vectors and maps actual fork/join parallelism happens, and standard reduce is called for linear lists.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'> <span class="nv">clojure.lang.IPersistentVector</span>
+</span><span class='line'> <span class="p">(</span><span class="nf">coll-fold</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">v</span> <span class="nv">n</span> <span class="nv">combinef</span> <span class="nv">reducef</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">foldvec</span> <span class="nv">v</span> <span class="nv">n</span> <span class="nv">combinef</span> <span class="nv">reducef</span><span class="p">))</span>
+</span><span class='line'>
+</span><span class='line'> <span class="nv">Object</span>
+</span><span class='line'> <span class="p">(</span><span class="nf">coll-fold</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">coll</span> <span class="nv">n</span> <span class="nv">combinef</span> <span class="nv">reducef</span><span class="p">]</span>
+</span><span class='line'>  <span class="c1">;;can&#39;t fold, single reduce</span>
+</span><span class='line'>  <span class="p">(</span><span class="nb">reduce </span><span class="nv">reducef</span> <span class="p">(</span><span class="nf">combinef</span><span class="p">)</span> <span class="nv">coll</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>What I like the most about reducers is that reducer functions are curried, so you can compose them together as in:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">red</span> <span class="p">(</span><span class="nb">comp </span><span class="p">(</span><span class="nf">r/filter</span> <span class="nv">even?</span><span class="p">)</span> <span class="p">(</span><span class="nf">r/map</span> <span class="nv">inc</span><span class="p">)))</span>
+</span><span class='line'><span class="p">(</span><span class="nb">reduce + </span><span class="p">(</span><span class="nf">red</span> <span class="p">[</span><span class="mi">1</span> <span class="mi">1</span> <span class="mi">1</span> <span class="mi">2</span><span class="p">]))</span>
+</span><span class='line'><span class="c1">;=&gt; 6</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>It&#8217;s like the utmost example of the <a href="http://www.infoq.com/presentations/Simple-Made-Easy">simple made easy</a> Hickey&#8217;s talk, where decomplecting the system, results in a much simpler but powerful
+design at the same time.</p>
+
+<p><em>I&#8217;m <a href="http://www.twitter.com/guilespi">guilespi</a> at Twitter</em></p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-12-01T13:25:00-02:00" pubdate data-updated="true">Dec 1<span>st</span>, 2013</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/clojure/'>clojure</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2013/12/01/whats-so-great-about-reducers/" data-via="" data-counturl="http://guilespi.github.com/blog/2013/12/01/whats-so-great-about-reducers/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/" title="Previous Post: Zipkin distributed tracing using Clojure">&laquo; Zipkin distributed tracing using Clojure</a>
+      
+      
+        <a class="basic-alignment right articlenav" href="/blog/2014/04/13/decompiling-clojure-i/" title="Next Post: Decompiling Clojure I">Decompiling Clojure I &raquo;</a>
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What's so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen's club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2013/12/01/whats-so-great-about-reducers/';
+        var disqus_url = 'http://guilespi.github.com/blog/2013/12/01/whats-so-great-about-reducers/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

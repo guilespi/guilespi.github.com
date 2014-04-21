@@ -1,0 +1,1716 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="The coxcomb chart was first used by Florence Nightingale to persuade Queen Victoria about improving
+conditions in the military hospitals during the &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/page/2/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div class="blog-index">
+  
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/11/25/coxcomb-charts-with-raphael-dot-js/">Coxcomb Charts With Raphael.js</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-11-25T18:21:00-02:00" pubdate data-updated="true">Nov 25<span>th</span>, 2012</time>
+        
+         | <a href="/blog/2012/11/25/coxcomb-charts-with-raphael-dot-js/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>The coxcomb chart was first used by Florence Nightingale to persuade Queen Victoria about improving
+conditions in the military hospitals during the Crimean War.</p>
+
+<p><img class="center" src="/images/blog/coxcomb-nightingale.jpg" width="480" height="680" title="'Nightingale coxcomb'" ></p>
+
+<p>As you see it serves the same purpose as a traditional barchart, but displays the information in
+a coxcomb flower pattern.</p>
+
+<p>I couldn&#8217;t find something already done that suited my needs, so I made one my self.</p>
+
+<p>It&#8217;s slightly modified from the original design, since it doesn&#8217;t display the bars stacked but side by side, I think it&#8217;s better
+to display superposed labels that way.</p>
+
+<p><strong>Death and Mortality</strong></p>
+
+<script type="text/javascript" src="https://raw.github.com/guilespi/resume-of-sorts/master/scripts/jquery-1.7.2.min.js"></script>
+
+
+<script type="text/javascript" src="https://raw.github.com/guilespi/resume-of-sorts/master/scripts/raphael-min.js"></script>
+
+
+<script type="text/javascript" src="https://raw.github.com/guilespi/coxcomb-chart/master/src/coxcomb.js"></script>
+
+
+<div id="deaths"></div>
+
+
+<script type="text/javascript">
+  var deaths = {
+     data : { 
+         jan : {
+            disease : 50,
+            wounds : 20
+         },
+         feb : {
+            disease : 60,
+            wounds : 35
+         },
+         mar : {
+            disease : 80,
+            wounds : 50
+         },
+         apr : {
+            disease : 70,
+            wounds : 20
+         },
+         may : {
+            disease : 30,
+            wounds : 60
+         },
+         jun : {
+            disease : 75,
+            wounds : 22
+         },
+         jul : {
+            disease : 66,
+            wounds : 65
+         },
+         aug : {
+            disease : 30,
+            wounds : 14
+         },
+         sep : {
+            disease : 50,
+            wounds : 14
+         },
+         oct : {
+            disease : 24,
+            wounds : 32
+         },
+         nov : {
+            disease : 30,
+            wounds : 44
+         },
+         dec : {
+            disease : 50,
+            wounds : 5
+         },
+     },
+     colors : {
+        category : "#2B2B2B",
+        opacity : 0.8,
+        fontColor: "#fff",
+        bySeries : {
+            disease  : {
+              color : "#E9E581",
+              opacity : 0.8,
+              fontColor: "#000",
+            },
+            wounds : {
+              color: "#DE1B1B",
+              opacity: 0.7,
+              fontColor: "#fff"
+            }
+        }
+      } 
+    }; 
+    var paperWidth = 600;
+    var paperHeight = paperWidth * 0.8;
+    var lastSelection;
+    var properties = {
+        categorySize : 0.20,
+        categoryFontSize: paperWidth > 500 ? 10 : 6,
+        seriesFontSize: paperWidth > 500 ? 10 : 6,
+        onClick: function(polygon, text) {
+            if (lastSelection) {
+                lastSelection.remove();
+            }
+            lastSelection = polygon.glow();
+        },
+        stroke: "#fff"
+    };
+    Raphael("deaths", paperWidth, paperHeight)
+            .coxCombChart(paperWidth / 2,paperHeight / 2, paperHeight / 2, deaths, properties);
+</script>
+
+
+<p>Feeding data into the chart is straightforward</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+</pre></td><td class='code'><pre><code class='javascript'><span class='line'><span class="nx">deaths</span> <span class="o">=</span> <span class="p">{</span>
+</span><span class='line'>   <span class="nx">data</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>       <span class="nx">jan</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">disease</span> <span class="o">:</span> <span class="mi">180</span><span class="p">,</span>
+</span><span class='line'>          <span class="nx">wounds</span> <span class="o">:</span> <span class="mi">20</span>
+</span><span class='line'>       <span class="p">},</span>
+</span><span class='line'>       <span class="nx">feb</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">disease</span> <span class="o">:</span> <span class="mi">140</span><span class="p">,</span>
+</span><span class='line'>          <span class="nx">wounds</span> <span class="o">:</span> <span class="mi">35</span>
+</span><span class='line'>       <span class="p">},</span>
+</span><span class='line'>       <span class="nx">mar</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">disease</span> <span class="o">:</span> <span class="mi">80</span><span class="p">,</span>
+</span><span class='line'>          <span class="nx">wounds</span> <span class="o">:</span> <span class="mi">50</span>
+</span><span class='line'>       <span class="p">},</span>
+</span><span class='line'>       <span class="nx">may</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">disease</span> <span class="o">:</span> <span class="mi">40</span><span class="p">,</span>
+</span><span class='line'>          <span class="nx">wounds</span> <span class="o">:</span> <span class="mi">40</span>
+</span><span class='line'>       <span class="p">},</span>
+</span><span class='line'>       <span class="p">...</span>
+</span><span class='line'>    <span class="nx">colors</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>        <span class="p">...</span>
+</span><span class='line'>    <span class="p">}</span>
+</span><span class='line'><span class="p">}</span>
+</span><span class='line'><span class="nx">Raphael</span><span class="p">(</span><span class="s2">&quot;deaths&quot;</span><span class="p">,</span> <span class="nx">width</span><span class="p">,</span> <span class="nx">height</span><span class="p">).</span>
+</span><span class='line'>    <span class="nx">coxCombChart</span><span class="p">(</span><span class="nx">width</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="nx">height</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="nx">height</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="nx">deaths</span><span class="p">,</span> <span class="nx">properties</span><span class="p">);</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I&#8217;ve used it to show some skills in a <a href="http://resume.guillermowinkler.com">resume-of-sorts</a> if you wanna see a color strategy by category and not by series.</p>
+
+<p><strong>Lie Factor Warning</strong></p>
+
+<p>The received values are normalized and the maximum value takes the complete radius of the coxcomb. Be warned,
+each value is normalized and only the radius is affected, not the complete area of the disc sector.
+This may introduce visualization problems as the ones pointed by <a href="http://www.amazon.com/Visual-Display-Quantitative-Information/dp/0961392142">Edward Tufte</a>, with x10 lie factors or more, as in the following known case with a 9.4
+lie factor.</p>
+
+<p><img class="center" src="/images/blog/barreltufte.jpg" width="280" height="480" title="'Lie factor 9.4, Edward Tufte, The Visual Display of Quantitative Information'" ></p>
+
+<p>I may fix it if someone founds this useful, the area for the formulas are on <a href="http://understandinguncertainty.org/node/214">this website</a>. The source code is <a href="https://github.com/guilespi/coxcomb-chart">on github</a>.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">Twitter</a></em></p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/">Neither Types Nor Tests Will Solve Your Data Coverage Problem</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-11-14T22:24:00-02:00" pubdate data-updated="true">Nov 14<span>th</span>, 2012</time>
+        
+         | <a href="/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>I just watched the Strangeloop talk titled <a href="http://www.infoq.com/presentations/Types-Tests">Types vs. Tests: An Epic Battle</a> from Amanda Laucher and Paul Snively.
+As Amanda says it&#8217;s a discussion many of us have had in the past, I used to talk about it with <a href="http://www.twitter.com/fedesilva">fedesilva</a>,
+hardcore Scala advocate, you know what I mean?</p>
+
+<p>For me, I think types and tests are two sides of the same coin, because neither strategy
+for proving correctness is computable.</p>
+
+<p>Bear with me.</p>
+
+<p>The purpose of having types or having tests, it&#8217;s to prove your program to be correct before <a href="http://blog.guillermowinkler.com/blog/2012/11/07/whats-a-bug-worth/">your bugs reach your customers</a>,
+one strategy tries to prove it <em>at compile time</em> and the other <em>after compile time</em>. But what it really means your program to be <em>correct</em>?</p>
+
+<p>Let&#8217;s go for ride on <a href="http://en.wikipedia.org/wiki/Computability_theory">Computability Theory</a>.</p>
+
+<p><strong>Functions and programs</strong></p>
+
+<p>According to the definition a function <code>f</code> is computable if a program <code>P</code> exists which can calculate the function given unlimited amounts of time and storage.</p>
+
+<pre><code>f:N→N is computable ↔ ∃ a program P which computes the function.
+</code></pre>
+
+<p>Also we must define when a program <code>P</code> converges for input <code>n</code>.</p>
+
+<pre><code>Program P with input n converges if ∃ m ∈ N / &lt;Q,n&gt; = m , it's written &lt;Q,n&gt;↓
+</code></pre>
+
+<p>In computer theory there are well known functions to be non computable, two of them are:</p>
+
+<pre><code>Θ(n) = 1  if &lt;Ix(n), n&gt;↓
+       0  if &lt;Ix(n), n&gt;↑
+</code></pre>
+
+<p>Which says that the function <code>Θ</code> is equal to 1 if the program of index <code>n</code> converges on input <code>n</code> and 0 if the program of index <code>n</code> diverges on input <code>n</code>.</p>
+
+<p>There&#8217;s another very famous function which has been proved to be non computable.</p>
+
+<pre><code>stop(p, n) = 1 if &lt;Ix(p), n&gt;↓
+             0 if &lt;Ix(p), n&gt;↑
+</code></pre>
+
+<p>Which pretty much says that given a description of an arbitrary computer program, decide whether the program finishes running or continues to run forever.
+As you may have guessed, it&#8217;s the well known <a href="http://en.wikipedia.org/wiki/Halting_problem">Halting Problem</a>, and it&#8217;s <em>not</em> computable.</p>
+
+<p><strong>How the Halting Problem relates to types and tests</strong></p>
+
+<p>Let&#8217;s assume our program <code>P</code> we&#8217;re trying to prove correct, computes the function <code>f:N→N</code>. We can define our program that proves correctness, a program <code>T</code>
+that computes the function</p>
+
+<pre><code>ft:N→{0,1} 
+</code></pre>
+
+<p>Which is to say, for every input of the domain, our program <code>T</code> decides if the program converges or not. It&#8217;s starting to sound familiar ain&#8217;t it?</p>
+
+<p>Let&#8217;s assume such a program <code>T</code> exists to prove correctness, and we have a macro <code>MT</code> to find such a program given <code>P</code>. We could write the following program <code>Q</code></p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>PROGRAM(x0, x1)
+</span><span class='line'>x3=MT(x0)
+</span><span class='line'>x4=EVAL_PROG(x3, x1)
+</span><span class='line'>RESULT(x4)</span></code></pre></td></tr></table></div></figure>
+
+
+<p>What <code>Q</code> does it&#8217;s having received a program <code>x0</code> and an input <code>x1</code>, first finds the <code>T</code> decider program for the program <code>x0</code>, and then evaluates the program
+with the input <code>x1</code>.</p>
+
+<p>So what do we have here?</p>
+
+<pre><code>Q(p, n) = 1 ↔ ft(n) = 1 ↔ &lt;P, n&gt; ↓
+</code></pre>
+
+<p>So we have written a program which computes the <code>stop</code> function, which is absurd. It means we cannot have a program that decides on the computability of
+a program.</p>
+
+<p><strong>Show me the code</strong></p>
+
+<p>In practice, it means that if you have this program</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='c'><span class='line'><span class="kt">int</span> <span class="nf">f</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>   <span class="k">while</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>     <span class="n">x</span><span class="o">--</span><span class="p">;</span>
+</span><span class='line'>   <span class="p">}</span>
+</span><span class='line'>   <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span><span class='line'><span class="p">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>This program doesn&#8217;t stop for <code>x &lt; 0</code>, and according to theory, there&#8217;s no program you can write to find out about it.</p>
+
+<p>There are also a few other funny cases regarding the domain of your functions, such as</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='c'><span class='line'><span class="kt">int</span> <span class="nf">f</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>   <span class="k">return</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mi">3</span><span class="p">);</span>
+</span><span class='line'><span class="p">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>This function fails miserably if <code>x = 3</code>. Just think about it when your functions have a more complex domain.</p>
+
+<p><strong>How to improve your tests for correctness</strong></p>
+
+<p>Most people I see are worried about having 100% <em>code coverage</em>, but it&#8217;s not that usual to see people worried about <em>data coverage</em>.</p>
+
+<p>As seen in the previous example if you forget to test for <code>x = 3</code> you may have 100% code coverage but your program will blow up anyway.</p>
+
+<p>Regarding types, I know <a href="http://en.wikipedia.org/wiki/Dependent_type">Dependent Types</a> exists, but it&#8217;s the other side of the same coin, you have to provide a constructive
+proof that the type is <em>inhabited</em>. So if you don&#8217;t define your type considering the special cases of your function domain, no one is coming
+up to save your ass.</p>
+
+<p>But when thinking about correctness you should be thinking about your function domain.</p>
+
+<p><strong>Conclusion</strong></p>
+
+<p>Both tests and types are useful ways to validate your program is correct, but not perfect. Even the discussion is meaningless, because it&#8217;s just a matter
+of taste whether you like to specify your correctness rules in types or tests, but it&#8217;s something you will keep doing as far as I can tell.</p>
+
+<p>As Rich Hickey <a href="https://twitter.com/richhickey/status/116490495500357633">said</a>, both tests and types are like guard rails, and you must know the cliff is there in order to decide building them.</p>
+
+<p><strong>Update:</strong>
+Many people wrote to me as if I&#8217;m saying you can&#8217;t prove a program to be correct, that was not what I&#8217;ve tried to say.
+It was that you can&#8217;t have a system that can prove programs to be correct without specifying the rules yourself.
+That is, it was a case against <code>Q</code> not against <code>T</code>.</p>
+
+<p><em>And hey! you follow me on <a href="http://www.twitter.com/guilespi">twitter</a>!</em></p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/11/07/whats-a-bug-worth/">What&#8217;s a Bug Worth, a Case for Continuous Integration</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-11-07T19:48:00-02:00" pubdate data-updated="true">Nov 7<span>th</span>, 2012</time>
+        
+         | <a href="/blog/2012/11/07/whats-a-bug-worth/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>It&#8217;s almost amazing that being the year 2012, on the break of Mayan Apocalypse, and there&#8217;s still some people pushing code out the door without stopping for a minute to think how much a bug costs.</p>
+
+<p>I&#8217;ll save you the thinking, it&#8217;s costing you customers.</p>
+
+<p>See the following chart I&#8217;ve crafted for you(emphasis on <em>crafted</em>), please hit the <code>play</code> button.</p>
+
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/static/modules/gviz/1.0/chart.js"> {"dataSourceUrl":"https://docs.google.com/spreadsheet/tq?key=0AgXlknkCPjl9dFpMT0pjRlNFZ1p4TkFDRWljY1AwYXc&transpose=0&headers=1&range=A1%3AF10&gid=0&pub=1","options":{"titleTextStyle":{"fontSize":16},"vAxes":[{"useFormatFromData":true,"title":"Left vertical axis title","minValue":null,"viewWindowMode":"pretty","viewWindow":{"min":null,"max":null},"maxValue":null},{"useFormatFromData":true,"minValue":null,"viewWindowMode":"pretty","viewWindow":{"min":null,"max":null},"maxValue":null}],"booleanRole":"certainty","title":"Chart title","height":321,"animation":{"duration":500},"width":667,"hAxis":{"useFormatFromData":true,"title":"Horizontal axis title","minValue":null,"viewWindowMode":"pretty","viewWindow":{"min":null,"max":null},"maxValue":null}},"state":{},"view":{},"chartType":"MotionChart","chartName":"Chart 1"} </script>
+
+
+
+
+<br>
+
+
+<br>
+
+
+<p>There&#8217;s an obvious relationship between the cost of fixing a bug and how much customers your company can effectively take.</p>
+
+<p>It has an easy explanation, if you have only one customer and your solution has a bug, what do you do?
+You call her, you explain the bug, you go to her office, you hack a fix, you drink some coffee, and you move on.
+Maybe if you have one big fat customer based on a personal relationship, you can live with that.</p>
+
+<p>I hope it&#8217;s clear for you this delivery process does not scale, is it?</p>
+
+<p>When you have hundreds or thousands of customers you can&#8217;t clone yourself and explain to everyone why your product is failing,
+you won&#8217;t drink a hundred coffees to build rapport and talk your way out of the mess.</p>
+
+<p>I think there&#8217;s still two big misconceptions about this relationship between your bugs and your customers,
+and it may affect how you decide on your development and delivery process.</p>
+
+<p><strong>Bug fixing cost and quality are not the same thing</strong></p>
+
+<p>It&#8217;s widely known, I hope, that the earlier you find a bug, the cheaper it is to fix it. <a href="http://blip.tv/clojure/hammock-driven-development-4475586">This guy</a> even fixes his bugs in the hammock, before writing any code.
+Take a look at the chart of the relative cost of fixing defects, <a href="http://www.riceconsulting.com/public_pdf/STBC-WM.pdf">this is the source</a></p>
+
+<p><img class="center" src="/images/blog/costofbugfixing.jpg" width="480" height="580" title="'Whats a bug worth'" ></p>
+
+<p>Obviously you should be investing in good Engineering, peer reviewing even your documents and designs, and testing your components early an often.
+(Quality is not about testing either, but that&#8217;s material for another rant). What&#8217;s not so clear, is given that some bugs <em>will always</em> reach your customers,
+how do you reduce the cost of fixing your on-the-wild bugs?</p>
+
+<p>You should do everything in your reach to produce quality products, because it&#8217;s cheaper in the long run.
+But what will make or break your ability to grow your customer base, is how fast and cheap you move when a bug is found.
+Your maintenance cost, if you want.</p>
+
+<p><strong>Bug fixing cost is like performance in the browser</strong></p>
+
+<p>You should watch <a href="http://www.infoq.com/presentations/Performance-V8-Dart">this talk</a> from the last Strangeloop, besides being great, Lars Bak makes a great point about performance in the browser,
+when a new level of performance was reached on the Javascript VM, all new kinds of applications started to pop up taking advantage of that performance.</p>
+
+<p>It&#8217;s <em>not</em> the other way around.</p>
+
+<p><a href="http://en.wikipedia.org/wiki/Correlation_does_not_imply_causation">Correlation does not imply causation</a>, until it does, just be sure to understand what causes what.</p>
+
+<p>Speed in the browser did not improve because Gmail was running too slow, first speed improved, then we have Gmail.</p>
+
+<p>It&#8217;s the same with your customers.</p>
+
+<p>If you wait till having lots of customers to start thinking about improving your maintenance costs, you will never have them.
+Having low support and maintenance costs will make you find a way to acquire more customers, just because you can.</p>
+
+<p><strong>What to do?</strong></p>
+
+<p>This is not by any means a complete nor bulletproof list, but some strategies I&#8217;ve found from personal experience that help.</p>
+
+<p><strong>You do <a href="https://speakerdeck.com/sebastianmoreno/continuous-improvement-o-como-poner-los-robots-de-tu-lado">continuous integration and deployment</a></strong></p>
+
+<p>Have you ever been involved in a delivery process having to test thousands of test cases, run dozens of performance and stress tests,
+do it in multiple platforms, all of it, just because you patched 3 lines of code, and you must be absolutely sure everything is still working as intended?</p>
+
+<p>I have, and it&#8217;s not fun</p>
+
+<p>It&#8217;s not fun for your customer either, because you end up batching even your hot-fixes, and they&#8217;re not so hot anymore.
+And your customer has to wait, and you will eventually lose your customer.</p>
+
+<p>Continuous integration is not about some geeks with shiny tools, it&#8217;s about customers.</p>
+
+<p><strong>You develop with operations in mind</strong></p>
+
+<p>There&#8217;s a <a href="http://www.youtube.com/watch?v=LAP1zaXUvAE">great talk by Theo Schlossnagle</a> about what it means to have a career in web operations, walking the path, and becoming a craftsman, you must watch it, seriously, because it&#8217;s <em>that</em> good.</p>
+
+<p>One of the remarkable points is that you must build systems that are observable. Developers cannot separate themselves from the fact that software has to operate,
+actually run. And developers shouldn&#8217;t be trying to reproduce a bug in a controlled environment in order to understand if there&#8217;s really a bug.
+You should be able to diagnose the problem in the running system, so it must be observable. How much elements in that queue? is it stalled? you must know, now.</p>
+
+<p>And you don&#8217;t build observable systems if you start thinking about it after you&#8217;ve shipped, using an entirely different team(hello DevOps).</p>
+
+<p>Software with operations in mind is like software with security in mind, or quality in mind, it&#8217;s a state of being, and it&#8217;s about your development process.</p>
+
+<p><strong>You use the right tools</strong></p>
+
+<p>How long does it take you to <em>see</em> that a function is returning the wrong value?
+How long does it take you to find the 3 lines of log that point you to the exact spot the problem is?
+How long does it take you to analyze a crash dump and get to the cause of the crash?</p>
+
+<p>Being able to debug and diagnose a problem fast, is almost as important as being able to fix it fast, and deploying the fix fast.</p>
+
+<p>This is an area where I personally think there&#8217;s a lot of room for improvement regarding the tools we daily use,
+but you should know <a href="http://dtrace.org/blogs/">DTrace</a> exists and how to use it, idealistically.</p>
+
+<p><strong>Conclusion</strong></p>
+
+<p>If you&#8217;re hacking your brains out and life&#8217;s good, all the power to you. I like that too.</p>
+
+<p>But if you&#8217;re really thinking about scaling your business, you should be taking a look at your bug fixing and maintenance costs, now.</p>
+
+<p>There&#8217;s also a <a href="http://www.amazon.com/Art-Scalability-Architecture-Organizations-Enterprise/dp/0137030428">great book</a> about scaling companies, you should read that one too.</p>
+
+<p><em>And don&#8217;t forget to follow me on <a href="http://www.twitter.com/guilespi">twitter</a></em></p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/11/07/on-firing-yourself/">On Firing Yourself</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-11-07T16:31:00-02:00" pubdate data-updated="true">Nov 7<span>th</span>, 2012</time>
+        
+         | <a href="/blog/2012/11/07/on-firing-yourself/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>When you&#8217;ve been leading a team for a while, you kinda get used to get them together and break some news, whether it&#8217;s good or bad. People also get used to listening, and if you&#8217;ve done well, trusting you.</p>
+
+<p>But there&#8217;s some news you will never be ready to break, it&#8217;s the day you must say you&#8217;re stepping down.</p>
+
+<p>I know I wasn&#8217;t.</p>
+
+<p>It was one of the more difficult and saddest moments I&#8217;ve ever had to go through, I&#8217;m still finding hard to even write about it.</p>
+
+<p>Beyond all reasons, there&#8217;s only one thing I really want to say to Ewe, Niko, Burguer, Seba, Fernickk, Nacho, Juan, Cany, Paola, El Ruso Alexis, Fede, Canario, Lolo &amp; Diego.</p>
+
+<p>Thank you, it was an amazing ride.</p>
+
+<p>You&#8217;re gonna be missed</p>
+
+<p>El Cabeza</p>
+
+<p><em>At least you should follow me on <a href="http://www.twitter.com/guilespi">twitter</a>!</em></p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/">How Long Waiting for an Answer in StackOverflow</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-30T23:52:00-02:00" pubdate data-updated="true">Oct 30<span>th</span>, 2012</time>
+        
+         | <a href="/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>I&#8217;m not a <a href="http://www.stackoverflow.com">StackOverflow</a> active contributor, something I recently decided should start to change.</p>
+
+<p>I think it&#8217;s amazing the <code>speed</code> an answer is given for any asked question, like <em>freaking</em> fast. If you are using Google Reader to peek new questions filtered by tag, when you see a question, almost for sure it&#8217;s already answered.</p>
+
+<p>Fortunately all StackExchange data is <a href="http://media10.simplex.tv/content/xtendx/stu/stackoverflow/">open</a>, so we can see exactly <em>how</em> fast is that. I used the online <a href="http://data.stackexchange.com/faq">data browser</a>, more than enough for the task.</p>
+
+<p>I decided to consider only the questions having an accepted answer, since questions with many bogus answers should not be treated as having an answer at all.</p>
+
+<p><strong>tl;dr</strong></p>
+
+<p>The average answer time seems to be dependent on a mix of the maturity of the language and how many people is using it.</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguage5.png" width="550" height="650" title="'How long waiting for an answer by language, easy questions'" ></p>
+
+<p>Hey, Haskell has pretty good answer times, at least considering its <a href="http://www.tiobe.com/index.php/content/paperinfo/tpci/index.html">33th</a> position in the <a href="http://en.wikipedia.org/wiki/TIOBE_index">TIOBE Index</a>.</p>
+
+<p><strong>Not all questions are the same</strong></p>
+
+<p>Of course not all questions are the same, this is from the first query I ran.</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguageunfiltered.png" width="550" height="650" title="'How long waiting for an answer by language, all questions'" ></p>
+
+<p>This is an unfiltered query using all the questions from year 2012, you see the average answer time is much higher than the previous chart, around 1000 minutes, looking at the data:</p>
+
+<pre><code>Language    Ans. Time         Stdev
+c               934       7630.98957971267
+c++            1036       7258.13498426685
+clojure        1078       7485.94721484444
+haskell        1199       9059.91937846459
+php            1210       8588.58929278208
+lua            1386       6569.08356022594
+c#             1452       8875.00837073432
+scala          1472      10707.9191188056
+javascript     1490       9756.64151519177
+java           1755      10541.6111024572
+ruby           2124      11850.4353701107
+</code></pre>
+
+<p>The standard deviation is huge, we have a lot of questions that took ages to get answered, making the average answer time meaningless.</p>
+
+<p>So I decided to take out questions with an answer time greater than 24 hours, as 92% of the questions have an approved answer in less than 5 hours.
+(<a href="https://gist.github.com/3984320">here</a> you can see the query used to get this table)</p>
+
+<pre><code>DifficultyGroup    Total     Average              StandardDev
+Easy                47099        27           44.7263057563449 
+Medium                344       691          339.312936469053
+Hard                 1926      3769         2004.75027395979
+Hell                 1623     66865        96822.8840748525
+</code></pre>
+
+<p>It started to look like something:</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguage24.png" width="550" height="650" title="'How long waiting for an answer by language, less than 24 hours'" >
+<a href="https://gist.github.com/3984333">This</a> is the query.</p>
+
+<p>You see there, PHP running at front with 68 minutes average accepted answer time, either it&#8217;s too easy or there&#8217;re too many of them.</p>
+
+<p>If you wanna see how the distribution goes when considering accepted answers in less than 5 hours, is the first picture of the page, the trend is also there.</p>
+
+<p><strong>What about the time?</strong></p>
+
+<p>Something unexpected, average answer time is almost unaffected by the time of the day the question was asked.
+The only thing I see here is that Ruby programmers are being killed by the lunch break and c++ programmers slowly fade out with the day, ain&#8217;t it?</p>
+
+<p><img class="center" src="/images/blog/averageanswerhourbyhour.png" width="550" height="650" title="'How long waiting for an answer by time of day, ruby and c++'" ></p>
+
+<p><a href="https://gist.github.com/3984329">This</a> is the query.</p>
+
+<p>There goes my idea of catching unanswered questions at night. It would be interesting to see how many cross-timezone answering is happening.</p>
+
+<p><strong>Conclusion</strong></p>
+
+<p>It should work better running a regression against the complete dataset using more features than only programming language and time of day
+ to automatically guess which questions have more chance of have a long life unanswered. Maybe next time.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">Twitter</a></em></p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/">Computational Investment QSTK Framework From Python to Clojure</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-29T01:07:00-02:00" pubdate data-updated="true">Oct 29<span>th</span>, 2012</time>
+        
+         | <a href="/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>Last week started the course on <a href="https://class.coursera.org/compinvesting1-2012-001/class/index">Computational Investing</a> from Coursera and I&#8217;ve been taking a look.</p>
+
+<p>What caught my attention is the libraries used for portfolio construction and management, <a href="http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit">QSTK</a>, an opensource python framework, based on numpy, scipy, matplotlib, pandas, etc.</p>
+
+<p>Looking at the <a href="http://wiki.quantsoftware.org/index.php?title=QSTK_Tutorial_1">first tutorial</a>&#8217;s <a href="https://gist.github.com/3971007">source code</a>, saw it as an opportunity to migrate the tutorials and libraries to Clojure and get to play a little with <a href="http://incanter.org/">Incanter</a>.</p>
+
+<p>I&#8217;m going to highlight what I&#8217;ve found interesting when migrating the tutorials. I&#8217;m assuming you have QSTK installed and the QS environment variable is set, since the code depends on that for data reading.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="o">^</span><span class="p">{</span><span class="ss">:dynamic</span> <span class="nv">true</span><span class="p">}</span> <span class="nv">*QS*</span> <span class="p">(</span><span class="nb">get </span><span class="p">(</span><span class="nf">System/getenv</span><span class="p">)</span> <span class="s">&quot;QS&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p><strong>NYSE operation dates</strong></p>
+
+<p>As part of the initialization process the tutorial calls a function <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.dateutil-pysrc.html#getNYSEdays">getNYSEDays</a>, which retrieves all the days there was trading at the NYSE. Migration is straightforward using incanter&#8217;s read-dataset to read file into memory and then filter the required range.</p>
+
+<div><script src='https://gist.github.com/3970987.js'></script>
+<noscript><pre><code>(defn get-NYSE-days
+  &quot;Create a set of timestamps between startday and endday
+  that correspond to the days there was trading at the NYSE&quot;
+  [start-date end-date time-of-day]
+  (let [dates-file (str *QS* &quot;/qstkutil/NYSE_dates.txt&quot;)
+        NYSE-dates (incanter.io/read-dataset dates-file)
+        fmt (formatter &quot;MM/dd/yyyy&quot;)
+        dates (incanter.core/$map #(parse fmt %) :col0 NYSE-dates)]
+    (set (filter (fn [d] (within? (interval start-date end-date) d))
+           (map #(plus % time-of-day) dates)))))
+</code></pre></noscript></div>
+
+
+<p>Pay attention to the <code>time-of-day</code> set at 16 hours, <a href="http://en.wikipedia.org/wiki/List_of_market_opening_times">the time NYSE closes</a>, we&#8217;ll see it again in unexpected places.</p>
+
+<p><strong>Data Access</strong></p>
+
+<p>QSTK provides a helper class called <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.DataAccess.DataAccess-class.html">DataAccess</a> used for reading and caching stock prices.</p>
+
+<p>As you see here there&#8217;s some data reading happening, we&#8217;re gonna take a look at these functions since we&#8217;ll need to write them from scratch.</p>
+
+<figure class='code'><figcaption><span>Data initialization in python tutorial </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">dataobj</span> <span class="o">=</span> <span class="n">da</span><span class="o">.</span><span class="n">DataAccess</span><span class="p">(</span><span class="s">&#39;Yahoo&#39;</span><span class="p">)</span>
+</span><span class='line'><span class="n">voldata</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;volume&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span><span class='line'><span class="n">close</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;close&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span><span class='line'><span class="n">actualclose</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;actual_close&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We&#8217;re going to separate this in two functions, first reading symbol data from disk using again read-dataset and creating a hash-map indexed by symbol name.</p>
+
+<figure class='code'><figcaption><span>Creating a symbols hash-map of incanter datasets</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='Clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">read-symbols-data</span>
+</span><span class='line'>  <span class="s">&quot;Returns a hashmap of symbols/incanter datasets read from QS data directory&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">source-in</span> <span class="nv">symbols</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">data-dir</span> <span class="p">(</span><span class="nb">str </span><span class="nv">*QS*</span> <span class="s">&quot;/QSData/&quot;</span> <span class="nv">source-in</span> <span class="s">&quot;/&quot;</span><span class="p">)]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nb">reduce </span><span class="o">#</span><span class="p">(</span><span class="nb">assoc </span><span class="nv">%1</span> <span class="nv">%2</span> <span class="p">(</span><span class="nf">incanter.io/read-dataset</span> <span class="p">(</span><span class="nb">str </span><span class="nv">data-dir</span> <span class="nv">%2</span> <span class="s">&quot;.csv&quot;</span><span class="p">)</span> <span class="ss">:header</span> <span class="nv">true</span><span class="p">))</span> <span class="p">{}</span> <span class="nv">symbols</span><span class="p">)))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Then if you take a look at <code>voldata</code> in a python repl, you can see pretty much what it&#8217;s doing</p>
+
+<pre><code>                       AAPL       GLD     GOOG        $SPX       XOM
+ 2012-05-01 16:00:00  21821400   7414800  2002300  2706893315  13816900
+ 2012-05-02 16:00:00  15263900   5632300  1611500  2634854740  11108700
+ 2012-05-03 16:00:00  13948200  13172000  1868000  2673299265   9998600
+</code></pre>
+
+<p>It&#8217;s grabbing the specified column <code>volume</code> or <code>close</code> from each symbol dataset, and it&#8217;s creating a new table with the resulting column renamed as the symbol.</p>
+
+<p>All the get_data magic happens inside <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.DataAccess-pysrc.html#DataAccess.get_data_hardread">get_data_hardread</a>, it&#8217;s an ugly piece of code making a lot of assumptions about column names, and even about market closing time. I guess you can only use this library for markets closing at 16 hours local time.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">timemonth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">timebase</span><span class="o">-</span><span class="n">timeyear</span><span class="o">*</span><span class="mi">10000</span><span class="p">)</span><span class="o">/</span><span class="mi">100</span><span class="p">)</span>
+</span><span class='line'><span class="n">timeday</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">timebase</span><span class="o">-</span><span class="n">timeyear</span><span class="o">*</span><span class="mi">10000</span><span class="o">-</span><span class="n">timemonth</span><span class="o">*</span><span class="mi">100</span><span class="p">))</span>
+</span><span class='line'><span class="n">timehour</span> <span class="o">=</span> <span class="mi">16</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I&#8217;ve translated that into these two functions:</p>
+
+<div><script src='https://gist.github.com/3971076.js'></script>
+<noscript><pre><code>(defn select-value
+  &quot;Given a dataset indexed by date, returns the value corresponding to a specified column
+  if existent for a specific date&quot;
+  [ds column date]
+  (let [row (ds {:Date date})]
+    (when-not (nil? row) (incanter.core/$ 0 column row))))
+
+(defn get-data
+  &quot;Given a list of `symbols`, its data and a list of specific `timestamps`, builds a matrix(sequence)
+  with each column corresponding to a stock and the value extracted using `column` 
+  :Date        AAPL    GOOG    WFC
+  2012-02-01   54.1    33.1    25.0
+  2012-02-02   56.3    33.4    22.9&quot;
+  [timestamps symbols column symbols-data time-of-day]
+  (let [grouped-data (reduce (fn [m, s] (assoc m (s 0) (incanter.core/$group-by :Date (s 1)))) {} symbols-data)]
+    (for [t timestamps]
+      (let [unparsed-date (unparse (formatters :year-month-day) t)]
+        (reduce #(merge %1 {(%2 0) (select-value (%2 1) column unparsed-date)}) {:Date (to-long t)} grouped-data)))))</code></pre></noscript></div>
+
+
+<p>In this case Clojure shines, the <a href="https://gist.github.com/3971102">original function</a> is almost 300 lines of code. I&#8217;m missing a couple of checks but it&#8217;s not bad for a rookie, I think.</p>
+
+<p>The helper function <code>select-value</code> is there in order to avoid an exception when trying to find stock data for a non existent date. Also the function returns <code>:Date</code> as a double since it&#8217;s easier to handle later for charting.</p>
+
+<p><strong>Charting</strong></p>
+
+<p>Charting with Incanter is straightforward, there a subtle difference with python since you need to add each series one by one. So what python is doing here charting multiple series at once</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">newtimestamps</span> <span class="o">=</span> <span class="n">close</span><span class="o">.</span><span class="n">index</span>
+</span><span class='line'><span class="n">pricedat</span> <span class="o">=</span> <span class="n">close</span><span class="o">.</span><span class="n">values</span> <span class="c"># pull the 2D ndarray out of the pandas object</span>
+</span><span class='line'><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">newtimestamps</span><span class="p">,</span><span class="n">pricedat</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We need a little function to solve it with Incanter. Each iteration gets reduced into the next with all the series accumulated in one chart.</p>
+
+<figure class='code'><figcaption><span>creates multiple time-series at once</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">multi-series-chart</span>
+</span><span class='line'>  <span class="s">&quot;Creates a xy-chart with multiple series extracted from column data</span>
+</span><span class='line'><span class="s">  as specified by series parameter&quot;</span>
+</span><span class='line'>  <span class="p">[{</span><span class="ss">:keys</span> <span class="p">[</span><span class="nv">series</span> <span class="nv">title</span> <span class="nv">x-label</span> <span class="nv">y-label</span> <span class="nv">data</span><span class="p">]}]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">chart</span> <span class="p">(</span><span class="nf">incanter.charts/time-series-plot</span> <span class="ss">:Date</span> <span class="p">(</span><span class="nb">first </span><span class="nv">series</span><span class="p">)</span>
+</span><span class='line'>                                                 <span class="ss">:x-label</span> <span class="nv">x-label</span>
+</span><span class='line'>                                                 <span class="ss">:y-label</span> <span class="nv">y-label</span>
+</span><span class='line'>                                                 <span class="ss">:title</span> <span class="nv">title</span>
+</span><span class='line'>                                                 <span class="ss">:series-label</span> <span class="p">(</span><span class="nb">first </span><span class="nv">series</span><span class="p">)</span>
+</span><span class='line'>                                                 <span class="ss">:legend</span> <span class="nv">true</span>
+</span><span class='line'>                                                 <span class="ss">:data</span> <span class="nv">data</span><span class="p">)]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nb">reduce </span><span class="o">#</span><span class="p">(</span><span class="nf">incanter.charts/add-lines</span> <span class="nv">%1</span> <span class="ss">:Date</span> <span class="nv">%2</span> <span class="ss">:series-label</span> <span class="nv">%2</span> <span class="ss">:data</span> <span class="nv">data</span><span class="p">)</span> <span class="nv">chart</span> <span class="p">(</span><span class="nb">rest </span><span class="nv">series</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p><strong>Data Mangling</strong></p>
+
+<p>Incanter has <em>a lot</em> of built-in functions and helpers to operate on your data, unfortunately I couldn&#8217;t use one of the many options for operating
+on a matrix, or even <code>$=</code>, since the data we&#8217;re processing has many <code>nil</code> values inside the dataset for dates the stock didn&#8217;t trade which raises an exception when
+treated as a number, which is what to-matrix does, tries to create an array of Doubles.</p>
+
+<p>There&#8217;s one more downside and it&#8217;s we need to keep the <code>:Date</code> column as-is when operating on the dataset, so we need to remove it, operate, and add it later again, what happens to be a beautiful one-liner in python</p>
+
+<figure class='code'><figcaption><span>This attempts a naive normalization dividing each row by the first one. </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'> <span class="n">normdat</span> <span class="o">=</span> <span class="n">pricedat</span><span class="o">/</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><figcaption><span>Or the daily return function. </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">dailyrets</span> <span class="o">=</span> <span class="p">(</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">1</span><span class="p">:,:]</span><span class="o">/</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,:])</span> <span class="o">-</span> <span class="mi">1</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I ended up writing from scratch the iteration and function applying code.</p>
+
+<div><script src='https://gist.github.com/3971236.js'></script>
+<noscript><pre><code>
+(defmacro apply-filtered
+  &quot;Given two sequences, apply a function to each pair of elements when condition is met
+  anaphoras n and m exists for each indexed element
+
+  e.g. (apply-filtered / [1 2 3] [1 0 3] when (&gt; m 0)) =&gt; (1 nil 1)
+  &quot;
+  [op a b &amp; condition]
+  `(for [x# (range (count ~a))]
+    (let [n# (nth ~a x#)
+          m# (nth ~b x#)]
+      (when (~(second condition) n# m#)
+        (~op n# m#)))))
+
+(defmacro apply-rows
+  &quot;Apply an operation to each row of the dataset excluding :Date column
+   A start row and a condition must be given
+
+  .e.g Divide each row by vector [1 0 3] starting from 0 validating divide by zero
+    (apply-rows ds (/ [1 2 3]) 0 (fn [n m] (&gt; m 0))&quot;
+  [data operation start cond]
+  `(let [raw-data# (incanter.core/$ :all [:not :Date] ~data)
+        raw-cols# (incanter.core/col-names raw-data#)
+        dates# (incanter.core/$ :all :Date ~data)] 
+       (incanter.core/col-names
+        (incanter.core/conj-cols
+         (for [~&#39;i (range ~start (incanter.core/nrow raw-data#))]
+           (apply-filtered
+                      ~(first operation)
+                      (vec (incanter.core/$ ~&#39;i [:not :Date] raw-data#))
+                      ~(second operation)
+                      :when ~cond))
+         dates#) (conj raw-cols# :Date))))
+</code></pre></noscript></div>
+
+
+<p>Maybe there&#8217;s an easier way but I couldn&#8217;t think of it, if you know a better way please drop me a line!</p>
+
+<p>Now normalization and daily-returns are at least manageable.</p>
+
+<figure class='code'><figcaption><span>Normalization and Daily Returns</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">normalize</span>
+</span><span class='line'>  <span class="s">&quot;Divide each row in a dataset by the first row&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">ds</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">first-row</span> <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nf">incanter.core/$</span> <span class="mi">0</span> <span class="p">[</span><span class="ss">:not</span> <span class="ss">:Date</span><span class="p">]</span> <span class="nv">ds</span><span class="p">))]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">apply-rows</span> <span class="nv">ds</span> <span class="p">(</span><span class="nb">/ </span><span class="nv">first-row</span><span class="p">)</span> <span class="mi">0</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">and </span><span class="p">(</span><span class="nb">not-any? nil? </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">])</span> <span class="p">(</span><span class="nb">&gt; </span><span class="nv">m</span> <span class="mi">0</span><span class="p">))))))</span>
+</span><span class='line'>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">daily-rets</span>
+</span><span class='line'>  <span class="s">&quot;Daily returns&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">data</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">apply-rows</span> <span class="nv">data</span>
+</span><span class='line'>            <span class="p">((</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">- </span><span class="p">(</span><span class="nb">/ </span><span class="nv">n</span> <span class="nv">m</span><span class="p">)</span> <span class="mi">1</span><span class="p">))</span> <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nf">incanter.core/$</span> <span class="p">(</span><span class="nb">- </span><span class="nv">i</span> <span class="mi">1</span><span class="p">)</span> <span class="p">[</span><span class="ss">:not</span> <span class="ss">:Date</span><span class="p">]</span> <span class="nv">data</span><span class="p">)))</span>
+</span><span class='line'>            <span class="mi">1</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">and </span><span class="p">(</span><span class="nb">not-any? nil? </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">])</span> <span class="p">(</span><span class="nb">&gt; </span><span class="nv">m</span> <span class="mi">0</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Having the helper functions done, running of the tutorial is almost declarative.</p>
+
+<div><script src='https://gist.github.com/3971246.js'></script>
+<noscript><pre><code>(defn run
+  []
+  (let [symbols [&quot;AAPL&quot;,&quot;GLD&quot;,&quot;GOOG&quot;,&quot;$SPX&quot;,&quot;XOM&quot;]
+        start-day (date-time 2012 1 1)
+        end-day (date-time 2012 12 31)
+        time-of-day (hours 16)
+        timestamps (get-NYSE-days start-day end-day time-of-day)
+        symbols-data (read-symbols-data &quot;Yahoo&quot; symbols)
+        adj-close-data (incanter.core/to-dataset
+                        (get-data timestamps symbols (keyword &quot;Adj Close&quot;) symbols-data time-of-day))]
+    (do
+      ;;first chart of the tutorial
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Adjusted Close&quot;
+                                               :title &quot;Adjusted close data&quot;
+                                               :data adj-close-data}))
+      ;;second chart of the tutorial
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Adjusted Close&quot;
+                                               :title &quot;Normalized close data&quot;
+                                               :data (normalize adj-close-data)}))
+      ;;daily returns
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Return&quot;
+                                               :title &quot;Daily Returns&quot;
+                                               :data (daily-rets adj-close-data)}))
+      ;;quotes comparison with scatter plot
+      (incanter.core/view (incanter.charts/scatter-plot
+                           &quot;AAPL&quot; &quot;GOOG&quot;
+                           :x-label &quot;AAPL&quot;
+                           :y-label &quot;GOOG&quot;
+                           :legend true
+                           :data (normalize adj-close-data)
+                           )))))</code></pre></noscript></div>
+
+
+<p>If you wanna take a look at the whole thing together here&#8217;s the <a href="https://gist.github.com/3971253">gist</a>, I may create a repo later.</p>
+
+<p><img class="center" src="/images/blog/chartincanter.png" width="380" height="480" title="'Incanter charting finance data'" ></p>
+
+<p>Please remember NumPy is way much faster than Clojure since it links <a href="http://www.netlib.org/lapack/">BLAS/Lapack</a> libraries.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">twitter</a></em></p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/10/21/you-dont-redistribute-a-distribution/">You Don&#8217;t Redistribute a Distribution</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-21T14:54:00-02:00" pubdate data-updated="true">Oct 21<span>st</span>, 2012</time>
+        
+         | <a href="/blog/2012/10/21/you-dont-redistribute-a-distribution/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>I&#8217;ve written a post for <a href="http://www.cabezapropia.com/">cabeza propia</a> on <a href="http://www.cabezapropia.com/el-primer-problema-sobre-la-distribucion-de-la-riqueza/">distribution of wealth</a>. If you read spanish, take a look.</p>
+
+<p>The main point is there&#8217;s a semantic misunderstanding of what distribution of wealth is, confusing a statistical <a href="http://en.wikipedia.org/wiki/Frequency_distribution">frequency distribution</a> of income, with the transitive verb <code>distribute</code>.
+As if the current distribution of wealth is the result of someone who decided to distribute it unfairly.</p>
+
+<p>I pretty much agree on <a href="http://www.paulgraham.com/wealth.html">Paul Graham&#8217;s take</a> on wealth creation, and think our focus should be on individuals being able to create more value for society and for themselves.</p>
+
+<p><img class="center" src="/images/blog/sharingpie.jpg" width="450" height="550" title="'Wealth as a finite pie to be distributed'" ></p>
+
+<p>The semantic confusion may be just part of the reason we&#8217;re having the wrong conversation, about distributing, instead of being about affecting the distribution by creating.</p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/10/19/group-by-considered-harmful/">Group-by Considered Harmful</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-19T23:01:00-02:00" pubdate data-updated="true">Oct 19<span>th</span>, 2012</time>
+        
+         | <a href="/blog/2012/10/19/group-by-considered-harmful/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>Main reason big data is so trendy is because it&#8217;s closely related with web scale, and that of course means money. It&#8217;s the kind of problem you would <em>love</em> to have. Everybody thinks big data is about being <a href="http://techcrunch.com/2012/08/22/how-big-is-facebooks-data-2-5-billion-pieces-of-content-and-500-terabytes-ingested-every-day/">Facebook</a>, or <a href="http://www.slideshare.net/nkallen/q-con-3770885">Twitter</a>, or <a href="http://highscalability.com/blog/2012/2/13/tumblr-architecture-15-billion-page-views-a-month-and-harder.html">Tumblr</a></p>
+
+<p>But big data is not only about <a href="http://gigaom.com/cloud/facebook-hadoop-cluster/">moving your humongous petabytes</a> of user pictures from one place to another, big data is also a state of mind, and it can help you solve problems better and faster even if you&#8217;re not on the petabyte scale.</p>
+
+<p>And if you have ever seen a report taking ages to render, this post is for you. Because we&#8217;re in the Google age, so if you tell me it&#8217;s acceptable for you to take fucking <em>seconds</em> to spit that information out, you are delusional. In 2008, <a href="http://googleblog.blogspot.com/2008/07/we-knew-web-was-big.html">Google index size</a> was over a trillion pages, and the typical search returns <a href="http://googleblog.blogspot.com/2009/01/powering-google-search.html">in less than 0.2 seconds</a>.</p>
+
+<p>And one of the main reasons Google is so fast and engineers still deliver applications with such a poor performance, is because we&#8217;re still modeling data as if disk space is an issue.</p>
+
+<p>Let me explain.</p>
+
+<p>Let&#8217;s think about a telephony system that needs to keep track of every call entering a company or made by employees. A typical simplified cdr -call detail report- table will look like this:</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+
+</span><span class='line'>| Call Start | Call End | Duration | Direction |    Number     | Extension |   User   |
+</span><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+
+</span><span class='line'>| 20:05      | 20:15    |      600 | OUT       | +130512319292 |      1010 | John.Doe |
+</span><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>That&#8217;s perfectly fine, and if someone wants to know who the hell did that 40 minute call to the hot-line, it&#8217;s all in there.</p>
+
+<p>But let&#8217;s suppose you&#8217;re a contact center organization with 2000 extensions, you could easily be dialing 150K calls an hour. That&#8217;s billion of rows in a year&#8217;s operation and the table being hit pretty hard. Then someone asks, how much money have we spent in calls to Morocco? Or better yet, I want an alarm to be triggered when a deviation from standard operation occurs to detect fraud.</p>
+
+<p>So to avoid <a href="http://www.toadworld.com/Knowledge/DatabaseKnowledge/GuyHarrisonsResolvingOracleContention/ResolvingOracleContention/Feb2008Article/tabid/304/Default.aspx">locking and contention</a> over your call table, you may do something like this:</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>+------------+-----------------+----------+--------------+-------------+
+</span><span class='line'>|   Slice    | Number of calls | Duration |     User     | Destination |
+</span><span class='line'>+------------+-----------------+----------+--------------+-------------+
+</span><span class='line'>| 2012-10-10 |             121 |    49239 | John.Doe     | Germany     |
+</span><span class='line'>| 2012-10-10 |              90 |    28711 | John.Doe     | Australia   |
+</span><span class='line'>| 2012-09-02 |              78 |    12111 | Richard.Read | Uruguay     |
+</span><span class='line'>+------------+-----------------+----------+--------------+-------------+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>So you separate your <a href="http://datawarehouse4u.info/OLTP-vs-OLAP.html">realtime transactions</a> hitting the cdr, from the table used to query about statistical stuff. In datawarehousing there&#8217;s a name for that, it&#8217;s called <a href="http://en.wikipedia.org/wiki/Extract,_transform,_load">ETL</a>. The process of offloading your data to a system designed to be queried against. A real pain in the ass.</p>
+
+<p>Of course you have an advantage, you can answer many questions using the same stored information.</p>
+
+<ul>
+<li>How many calls has made Ricky this month?</li>
+<li>How many minutes were spent this week calling Bangladesh, by all users?</li>
+<li>What&#8217;s the day of the month with the most number of calls</li>
+</ul>
+
+
+<p>And we all know how, we use <a href="http://msdn.microsoft.com/en-us/library/b6ddy7ah(v=vs.80).aspx">GROUP BY</a>, the most overlooked clause in the performance analysis.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="k">SET</span> <span class="n">TRANSACTION</span> <span class="k">ISOLATION</span> <span class="k">LEVEL</span> <span class="k">READ</span> <span class="n">UNCOMMITED</span><span class="p">;</span>
+</span><span class='line'><span class="k">SELECT</span> <span class="k">User</span><span class="p">,</span> <span class="k">SUM</span><span class="p">(</span><span class="n">Duration</span><span class="p">)</span> <span class="k">as</span> <span class="n">Duration</span>
+</span><span class='line'><span class="k">FROM</span> <span class="n">CallSummary</span>
+</span><span class='line'><span class="k">WHERE</span> <span class="n">Slice</span> <span class="o">=</span> <span class="s1">&#39;2012-10-10&#39;</span>
+</span><span class='line'><span class="k">GROUP</span> <span class="k">BY</span> <span class="k">User</span><span class="p">;</span>
+</span><span class='line'><span class="k">COMMIT</span><span class="p">;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Then you face a problem again, whether to be fast, or to be up-to-date. Because if you update your summary every night you cannot detect a fraud deviation in the last 30 minutes, but if you update your summary with every call you have again the contention issue.</p>
+
+<p>But why is it that you need to have all the information in the same table?</p>
+
+<p>It&#8217;s the relational way of storing information, which gives you flexibility when you don&#8217;t know what you&#8217;re going to do with your data, but can be the cause of performance degradation. If you&#8217;re using group-by, the engine is iterating over each value in order to sum it up, there&#8217;s no free way out of that. I will show you a way that costs disk space and a loss in query flexibility.</p>
+
+<p>Before continuing with data modeling, let me do a little digression on data visualization.</p>
+
+<p>There&#8217;s a paper by <a href="http://www.perceptualedge.com/articles/visual_business_intelligence/differences_in_analytical_tools.pdf">Stephen Few</a>, who divides analytical audiences into three different types:</p>
+
+<p>1) Exploratory Analytics</p>
+
+<p><em>Strong need for data exploration. The analyst approaches data with usually open ended questions &#8220;What may be hiding here that&#8217;s interesting?&#8221;. Tools such as <a href="http://www.panopticon.com/">Panopticon Explorer</a> or <a href="http://spotfire.tibco.com/">Spotfire</a> are in this category.</em></p>
+
+<p>2) Custom Analytics</p>
+
+<p><em>People analyzing information in routine ways, performing the same analytical task as part of their job. User only needs to understand the information presented and business processes.</em></p>
+
+<p>3) Customizable Analytics</p>
+
+<p><em>Provides ready-made libraries for developers that need to create an application, such as <a href="http://www.qlikview.com/">QlikView</a>.</em></p>
+
+<p>And for some reason that escapes me, engineers almost always get stuck in a mix of options 1 and 2. We think our users to be creative geniuses with a need to derive hidden insights from our data, so we put this wonderful flexible tools in place for them.</p>
+
+<p>Bullshit. People want to get their job done and go home with the kids, and it&#8217;s <em>your</em> job to know better.</p>
+
+<p>Most of the time reporting or &#8220;analytics&#8221; as it&#8217;s usually called, is not analytics, because the user is not doing analysis, he&#8217;s just looking at data translated into information. And what data you&#8217;re putting on the screen, is the result of proper program management and understanding of your user&#8217;s needs. Or is it that it took you months to push that product out of the door and you don&#8217;t really know which information is relevant to your users?</p>
+
+<p>And if you do, why is it that you&#8217;re modeling your data as if you don&#8217;t?</p>
+
+<p>Hey, we&#8217;ll just let them query the information using all this dimensions, cool, and you can have this pivot table here, you see it &#8230;pivoting&#8230; give me fucking a break, the last time I started dragging and dropping dimensions in a pivot table I had a surmenage, who <em>are</em> your users?</p>
+
+<p>Digression ended, how do you escape the group-by trap?</p>
+
+<p>Well, you just store it grouped according to your query needs. I&#8217;ll show you first the idea, and then a specific Cassandra modeling of it.</p>
+
+<p>Let&#8217;s suppose that after talking to our users, we come to the conclusion they need the following questions answered:</p>
+
+<ul>
+<li>How many minutes spent in outgoing calls to different destinations, by day, week and month.</li>
+<li>How many calls made by users by day, week and month.</li>
+</ul>
+
+
+<p>We can storage each counter separately, and only lock when updating a specific counter. Our counters will have this format:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Destination</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Period</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Slice</span><span class="o">&gt;</span>
+</span><span class='line'><span class="n">CallsMade</span><span class="p">:</span><span class="o">&lt;</span><span class="k">User</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Period</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Slice</span><span class="o">&gt;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Where <code>&lt;Destination&gt;</code> is any destination we&#8217;ve called, <code>&lt;User&gt;</code> is any user in the system, <code>&lt;Period&gt;</code> is one of &#8220;ByDay&#8221;, &#8220;ByMonth&#8221; and &#8220;ByWeek&#8221;, and <code>&lt;Slice&gt;</code> is the specific time the value is being counted for.</p>
+
+<p>So an instance of our data may look like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="n">Canada</span><span class="p">:</span><span class="n">ByDay</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">09</span> <span class="o">=</span> <span class="mi">432</span> <span class="p">;</span> <span class="mi">432</span> <span class="n">minutes</span> <span class="k">in</span> <span class="n">calls</span> <span class="n">made</span> <span class="k">to</span> <span class="n">Canada</span> <span class="k">on</span> <span class="n">the</span> <span class="k">day</span> <span class="mi">2012</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">09</span>
+</span><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="n">USA</span><span class="p">:</span><span class="n">ByMonth</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">11</span> <span class="o">=</span> <span class="mi">54021</span> <span class="p">;</span> <span class="mi">54021</span> <span class="n">minutes</span> <span class="k">in</span> <span class="n">calls</span> <span class="n">made</span> <span class="k">to</span> <span class="n">USA</span> <span class="k">on</span> <span class="n">November</span>
+</span><span class='line'><span class="n">CallsMade</span><span class="p">:</span><span class="n">John</span><span class="p">.</span><span class="n">Doe</span><span class="p">:</span><span class="n">ByDay</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">12</span><span class="o">-</span><span class="mi">20</span> <span class="o">=</span> <span class="mi">43</span> <span class="p">;</span> <span class="n">John</span> <span class="n">made</span> <span class="mi">43</span> <span class="n">calls</span> <span class="n">today</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>If you&#8217;re looking at it and you think it looks like a map, it&#8217;s pretty much one. With the main difference each key is isolated from each other, you don&#8217;t need to lock on a page and four indexes in order to update a row. Each value gets updated separately.</p>
+
+<p>There&#8217;s two things we need to be sure about:</p>
+
+<ul>
+<li>Counter increment or decrement supporting concurrency</li>
+<li>A way to query for date ranges, and it should be <em>fast</em></li>
+</ul>
+
+
+<p>So it happens, we can do this with <a href="http://wiki.apache.org/cassandra/Counters">Cassandra counters</a>, and we get the bonus of having our data replicated and distributed, so you can scale out <a href="http://stackoverflow.com/questions/8839436/when-does-cassandra-hit-amdahls-law">almost</a> <a href="http://techblog.netflix.com/2011/11/benchmarking-cassandra-scalability-on.html">linearly</a>, no matter how many users or destinations you have, or how long you decide to keep track of statistics.</p>
+
+<p>The modeling is pretty straightforward, it looks like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">Statistics</span> <span class="err">=</span> <span class="p">{</span>
+</span><span class='line'>   <span class="err">OutgoingMinutes:Canada:ByDay</span> <span class="err">=</span> <span class="err">{</span>
+</span><span class='line'>        <span class="err">2012-10-09</span> <span class="err">:</span> <span class="err">432</span>
+</span><span class='line'>        <span class="err">2012-10-08</span> <span class="err">:</span> <span class="err">121</span>
+</span><span class='line'>        <span class="err">2012-10-07</span> <span class="err">:</span> <span class="err">987</span>
+</span><span class='line'>        <span class="err">2012-09-11</span> <span class="err">:</span> <span class="err">100</span>
+</span><span class='line'>        <span class="err">...</span>
+</span><span class='line'>   <span class="p">}</span><span class="err">,</span>
+</span><span class='line'>   <span class="err">OutgoingMinutes:USA:ByMonth</span> <span class="err">=</span> <span class="p">{</span>
+</span><span class='line'>        <span class="err">2012-11</span> <span class="err">:</span> <span class="err">54021</span>
+</span><span class='line'>        <span class="err">2012-10</span> <span class="err">:</span> <span class="err">43222</span>
+</span><span class='line'>        <span class="err">...</span>
+</span><span class='line'>   <span class="p">}</span><span class="err">,</span>
+</span><span class='line'>   <span class="err">CallsMade:John.Doe:ByDay</span> <span class="err">=</span> <span class="p">{</span>
+</span><span class='line'>        <span class="err">2012-12-20</span> <span class="err">:</span> <span class="err">43,</span>
+</span><span class='line'>        <span class="err">2012-12-19</span> <span class="err">:</span> <span class="err">34,</span>
+</span><span class='line'>        <span class="err">...</span>
+</span><span class='line'>   <span class="p">}</span>
+</span><span class='line'><span class="err">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I like modeling Cassandra schemas like JSON, it helps visualizing data layout better. For this particular case each element is:</p>
+
+<p><code>Statistics</code> is the Column Family, <code>OutgoingMinutes:Canada:ByDay</code> is the Row Key, <code>2012-10-09</code> is the Column name -you&#8217;re going to be sorting by this value- and
+<code>432</code> is the value, this is a counter column type that supports distributed updating.</p>
+
+<p>You can create the column family like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">create</span> <span class="err">column</span> <span class="err">family</span> <span class="err">Statistics</span> <span class="err">with</span> <span class="err">column_type=Standard</span> <span class="err">and</span> <span class="err">default_validation_class=CounterColumnType</span> <span class="err">and</span> <span class="err">key_validation_class=UTF</span><span class="mi">8</span><span class="err">Type</span> <span class="err">and</span> <span class="err">comparator=UTF</span><span class="mi">8</span><span class="err">Type;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>When you&#8217;ve been factorizing things out for years, repeating the key in order to have different values it&#8217;s nothing less than a deadly sin.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">OutgoingMinutes:Canada:ByDay</span> <span class="err">=</span> <span class="mi">100</span>
+</span><span class='line'><span class="err">OutgoingMinutes:Canada:ByMonth</span> <span class="err">=</span> <span class="mi">1000</span>
+</span><span class='line'><span class="err">OutgoingMinutes:Canada:ByYear</span> <span class="err">=</span> <span class="mi">10000</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>It&#8217;s like it&#8217;s screaming for a normalization, so much bytes being wasted in key names!</p>
+
+<p>But hey, we&#8217;re rendering views like this in our cluster with 100+ GB of data in milliseconds, <em>without</em> doing any kind of ETL.</p>
+
+<p><img class="left" src="/images/blog/countervisualization.png" width="580" height="680" title="'i6 analytics visualization'" ></p>
+
+<p>We&#8217;re trading disk space for computation <em>and</em> I/O time, in order to improve query performance, but it&#8217;s I/O time the usual culprit, having to iterate over a more flexible data structure in order to satisfy the rendering of a particular view . Sometimes you can even trade computation time for I/O time to improve performance, as in the case of <a href="http://www.datastax.com/dev/blog/whats-new-in-cassandra-1-0-compression">Cassandra</a> <a href="http://www.edwardcapriolo.com/roller/edwardcapriolo/entry/cassandra_compression_is_like_getting">data compression</a>.</p>
+
+<p>Wrapping up, this is not a case against relational databases, it&#8217;s a case for modeling things carefully, you don&#8217;t have to stick to an option because it seems to be flexible enough to accommodate all needs. You can always implement a message queue on top of MySQL, but it would be foolish not to use RabbitMQ, and you can always implement an inverted index on top of MySQL, but you should better use Lucene.</p>
+
+<p>Data storage doesn&#8217;t need to be <em>always</em> relational.</p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/09/02/waterfall-is-a-mindset/">Waterfall Is a Mindset</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-09-02T18:21:00-03:00" pubdate data-updated="true">Sep 2<span>nd</span>, 2012</time>
+        
+         | <a href="/blog/2012/09/02/waterfall-is-a-mindset/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>The Agile camp has become an industry, <a href="http://www.amazon.com/s?ie=UTF8&amp;page=1&amp;rh=n%3A283155%2Ck%3AAgile%20programming">books</a>,
+<a href="http://www.construx.com/Page.aspx?cid=2601">seminars</a>, <a href="http://www.linkedin.com/search/fpsearch?type=people&amp;keywords=agile+coach&amp;pageKey=member-home">agile coaches</a>,
+ <a href="http://gigaom.com/2010/10/07/inside-pivotal-labs-the-agile-force-behind-twitter-and-groupon/">awesome incubators</a>,
+there&#8217;s a lot of people making a living preaching this approach to building software, and it&#8217;s ok.
+Hey, <a href="http://gettingreal.37signals.com/ch11_Theres_Nothing_Functional_about_a_Functional_Spec.php">this guy</a> even said you can build a product without
+writing up-front what you&#8217;re fucking supposed to do, kudos to him.</p>
+
+<p>But there&#8217;s one thing missing in the picture, and it&#8217;s the fact that everybody seems to think agile is about <em>process</em>, and I dare to say it&#8217;s not <em>only</em> about process, it&#8217;s also about people.
+There&#8217;s a lot of waterfallists thinking they&#8217;re agile just because they&#8217;re in a meeting every morning where nobody&#8217;s allowed to use a chair.</p>
+
+<p>Bullshit, let me show you.</p>
+
+<p>This is how waterfall looks like by the books:</p>
+
+<p><img class="center" src="/images/blog/waterfallprocess.gif" width="480" height="580" title="'Waterfall by the book'" ></p>
+
+<p>This tries to convey the idea that waterfall is about process, you see, in each box there&#8217;s a task being done in each step, cool.</p>
+
+<p>But that&#8217;s not how people look at this picture, this is what people see when they get shown these boxes:</p>
+
+<p><img class="center" src="/images/blog/waterfallpeople.gif" width="480" height="580" title="'Waterfall by the walking practitioner'" ></p>
+
+<p>Roles, what&#8217;s <strong>my</strong> part, you know? The worst thing never said about waterfall, is that impregnates the idea that the development process has an underlying hierarchy of roles. And as it happens in any hierarchy, nobody wants to be at the bottom, ain&#8217;t it?</p>
+
+<p>Even the picture itself has a reminiscence of the infamous law of the henhouse, I wouldn&#8217;t be the one getting all the shit either.</p>
+
+<p><img class="center" src="/images/blog/henhouselaw.jpg" width="280" height="380" title="'La ley del gallinero'" ></p>
+
+<p>As Agile positions itself more about process and less about people, there&#8217;s going to be lot of fresh engineers knowing how to do a sprint, but waterfallists at heart.</p>
+
+<p>Fortunately they&#8217;re easy to spot if you come across one of them, they almost always say:</p>
+
+<ul>
+<li>I want to be an architect</li>
+<li>I don&#8217;t want to be a tester</li>
+<li>I don&#8217;t want to program forever, it&#8217;s just a step in my career.</li>
+</ul>
+
+
+<p>Let them burn in hell, yet another reason why <a href="/blog/2012/09/01/the-world-of-warcraft-of-the-linkedinz/">we don&#8217;t have ranks</a>.</p>
+
+<p><img class="center" src="/images/blog/gallinero.jpg" width="280" height="380" title="'Waterfallists doing a scrum meeting'" ></p>
+</div>
+  
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2012/09/01/the-world-of-warcraft-of-the-linkedinz/">The World of Warcraft of the Linkedinz</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-09-01T01:01:00-03:00" pubdate data-updated="true">Sep 1<span>st</span>, 2012</time>
+        
+         | <a href="/blog/2012/09/01/the-world-of-warcraft-of-the-linkedinz/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>At <a href="http://www.inconcertcc.com">inConcert</a> we don&#8217;t have any ranks, we ain&#8217;t the fucking army you know?</p>
+
+<p>We all are <a href="http://www.nobullshit.com.uy/">R&amp;D staff</a>. Of course we have different skills, some people is better at some things than others,
+and each person has his own inclination towards something, whether it&#8217;s math, machine learning or user interface design.</p>
+
+<p>But there&#8217;s no rank.</p>
+
+<p>There&#8217;s even job descriptions, whether you&#8217;re a designer or an engineer,
+it&#8217;s based on the idea proposed by <a href="http://www.jrothman.com/blog/mpd/Creatingontarget.pdf">Johanna Rothman</a>, and it states:</p>
+
+<ul>
+<li>What are you supposed to do</li>
+<li>What skills you need</li>
+<li>What are your deliverables</li>
+</ul>
+
+
+<p>It serves as a compass when you start to understand what&#8217;s important in your position (no sole lickers please)</p>
+
+<p>But there&#8217;s no rank.</p>
+
+<p>You can be awesome and delivering solutions across the full stack or you can be struggling with a small subset of the product or technology we happen to be using. (And it will affect how much money you make)</p>
+
+<p>But there&#8217;s no rank.</p>
+
+<p>And this is important, because these are times of disease, and we have a disease in town I want to warn you about; it&#8217;s called the Badge Hunting disease.</p>
+
+<p>Have you heard about the case of the CEO of his one person company? We used to call that a freelancer!
+These badge collecting trolls it&#8217;s like the World of Warcraft of the Linkedinz, have you seen them?
+That guy updating his profile every single week; his code passes a test? <em>Test Passing Manager</em>. Helped a colleague? <em>Team Leader</em>.
+Draw some mockups? <em>Product Manager</em>. Get some flyers printed and mailed? <em>Event co-organizer</em>. Made a website? <em>Entrepreneur</em>.</p>
+
+<p>Are you trying to impress your mother? These guys are more worried about the looks than about getting something done, and you should avoid them like the plague.</p>
+
+<p>I&#8217;m not advocating against having specific roles when a company grows into a stage of needing them, hey, I even think some badges you can earn, but if you deserve it I don&#8217;t think you really care about them.</p>
+
+<p>Show me what you&#8217;ve built, all the rest is bullshit.</p>
+
+<p><img class="center" src="/images/blog/wowbadge.jpg" width="280" height="380" title="'Badge collected during the battle of the linkedinz in the year 2280'" >
+And that&#8217;s why we have no ranks, if you want a badge go play some WoW.</p>
+</div>
+  
+  
+
+
+    </article>
+  
+  <div class="pagination">
+    
+      <a class="prev" href="/blog/page/3/">&larr; Older</a>
+    
+    <a href="/blog/archives">Blog Archives</a>
+    
+    <a class="next" href="/">Newer &rarr;</a>
+    
+  </div>
+</div>
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What&#8217;s so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen&#8217;s club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        var disqus_script = 'count.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

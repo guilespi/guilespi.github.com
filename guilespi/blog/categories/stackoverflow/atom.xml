@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: stackoverflow | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/stackoverflow/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2014-04-21T19:02:31-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Is StackOverflow a gentlemen's club?]]></title>
+    <link href="http://guilespi.github.com/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/"/>
+    <updated>2013-11-04T14:53:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2013/11/04/is-stackoverflow-a-gentlemens-club</id>
+    <content type="html"><![CDATA[<p>For some time now, tech industry has taken an active role in trying to solve the gender imbalance problem.</p>
+
+<ul>
+<li>Organizing <a href="http://railsgirls.com/">conferences</a> for women or by women</li>
+<li>Trying to bring more women into math or <a href="http://railsbridge.org/">cs</a></li>
+<li>Offering <a href="http://women2.com/etsy-hacker-school-scholarships-support-women-in-technology/">grants and scholarships</a> for <a href="https://www.hackerschool.com/faq">Hacker School</a></li>
+<li><a href="http://valleywag.gawker.com/business-insider-ctos-is-your-new-tech-bro-nightmare-1280336916">Public scorn</a> <a href="https://twitter.com/adriarichards/status/313417655879102464/photo/1">for offenders</a> when deserved</li>
+<li><a href="http://www.wired.com/underwire/2013/07/convention-harassment-comic-con/">Anti-Harassment</a> policies for conferences</li>
+</ul>
+
+
+<p>There's even <a href="http://pages.uoregon.edu/wmnmath/Statistics/index.html">gender studies in mathematics and other sciences</a>.</p>
+
+<p>But even if the issue has been on the table for a while, I've attended a few conferences where I live and the usual attendance looks like this:</p>
+
+<p><img class="center" src="/images/blog/meetup-gender.jpg" width="680" height="780" title="'What a conference looks like'" ></p>
+
+<p>I don't think you'll find more than 5 women in the picture.</p>
+
+<p>And I can tell you <strong>for sure</strong>, that picture does not represent <em>at all</em> the <em>women in tech</em> in the city.
+There may be an imbalance, but women are not by any means, 0,5% of computer science graduates here.</p>
+
+<p>So women are not participating, but why?</p>
+
+<h1>The Data</h1>
+
+<p>Since StackExchange has <a href="http://data.stackexchange.com/">open data</a> you can <a href="http://blog.guillermowinkler.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/">derive some insights from</a>, I decided to take a look at the problem from a different perspective,
+and address the question of the underrepresentation using StackOverflow data.</p>
+
+<p>I started with a few questions in mind:</p>
+
+<ul>
+<li>What % of users are women?</li>
+<li>What's the question/answer rate for men and women?</li>
+<li>How the reputation score for men and women compares?</li>
+<li>How it compares to ambiguous/unisex names?</li>
+<li>Is in fact SO a gentleman's club?</li>
+</ul>
+
+
+<p>Since SO has no gender data, gender needs to be inferred from  <em>user names</em>, which is obviously not 100% accurate,
+many names are unisex or depend on the country of origin. I decided to use <a href="http://www.heise.de/ct/ftp/07/17/182/">this database and program</a> which
+has names from all over the world curated by local people. In many cases you will get a statistical result: <em>mostly male</em>
+or <em>mostly female</em>, and that makes sense.</p>
+
+<p><em>Be warned</em> this is not a scientific study nor tries to be, just trying to see some patterns here.</p>
+
+<h1>First Glimpse</h1>
+
+<p>First I wanted to get a glimpse of the general trends, so I did a random draw of 50k users, more than enough for what I need.</p>
+
+<p><code>sql
+Select * From users
+Order By newid()
+</code>
+StackExchange limits the number of rows returned by the online database browser to 50k, so that's it.</p>
+
+<p><img class="center" src="/images/blog/random-share.png" width="680" height="780" title="'Random share'" ></p>
+
+<p>```</p>
+
+<blockquote><p>table(users$gender)/nrow(users)
+  anonymous    error in name        is female          is male     is mostly female   is mostly male   is unisex name   name not found
+   0.25662       0.00006              0.02910          0.23640          0.00946          0.04654          0.02942          0.39240
+```</p></blockquote>
+
+<p>As you see there's a 27% of confirmed males and only a 4% of confirmed females.  <code>Anonymous</code> users are the usual numerical users like <code>user395607</code>,
+and <code>name not found</code> refers to things like <code>ppkt</code>, <code>HeTsH</code>,  <code>holden321</code> and <code>ITGronk</code>, you get the idea.</p>
+
+<p>Then I wanted to see how reputation was distributed among those users, and how that compared against how long the user was using the site.</p>
+
+<p><img class="center" src="/images/blog/random-reputation.png" width="680" height="780" title="'Random reputation'" ></p>
+
+<p>There you go, an image is worth a thousand words, reputation difference among genders is <em>huge</em>, it doesn't seem to be related to how long you've been around either.</p>
+
+<h1>Fresh users</h1>
+
+<p>To confirm that, I drew randomly 50k fresh users, who joined the site after <code>2012-10-10</code>, just to see if trends were any different considering only last year data.</p>
+
+<p><code>sql
+Select * From users
+Where CreationDate &gt; '2012-10-10'
+Order By newid()
+</code></p>
+
+<p><img class="center" src="/images/blog/fresh-share.png" width="680" height="780" title="'Fresh share'" ></p>
+
+<p>```</p>
+
+<pre><code>&gt; table(users$gender)/nrow(users)
+   anonymous    error in name        is female          is male     is mostly female   is mostly male   is unisex name   name not found 
+     0.35620      0.00002             0.03178          0.20320          0.01014            0.04076          0.02544         0.33246 
+</code></pre>
+
+<p>```</p>
+
+<p>Here women seem to be a little bit closer, but still a great difference.</p>
+
+<p><img class="center" src="/images/blog/fresh-reputation.png" width="680" height="780" title="'Fresh reputation'" ></p>
+
+<h1>The best of the best</h1>
+
+<p>Then I drew the 50k users with the highest reputation score.</p>
+
+<p><code>sql
+Select * From users
+Order By Reputation Desc
+</code></p>
+
+<p>Now we're seeing some changes:</p>
+
+<p><img class="center" src="/images/blog/top-share.png" width="680" height="780" title="'Top share'" >
+```</p>
+
+<pre><code>&gt; table(users$gender)/nrow(users)
+   anonymous    error in name        is female          is male is mostly female   is mostly male   is unisex name   name not found 
+     0.00794          0.00002          0.01064          0.34130          0.00890          0.06656          0.03524          0.52940 
+</code></pre>
+
+<p>```</p>
+
+<p>As you expect here there's almost no <code>anonymous</code> users, in the <em>online community</em> charity has a name attached to it, ain't it?</p>
+
+<p>And the reputation trend is still there, something you can readily confirm if you scroll the first pages of the <a href="http://stackoverflow.com/users?tab=Reputation&amp;filter=all">all time user's reputation page</a>.</p>
+
+<p><img class="center" src="/images/blog/top-reputation.png" width="680" height="780" title="'Top reputation'" ></p>
+
+<p>But then I charted the reputation <em>distribution</em> against gender and something interesting arises:</p>
+
+<p><img class="center" src="/images/blog/top-distribution-all.png" width="680" height="780" title="'Top distribution all'" ></p>
+
+<p>As you see, there's a great deal of outliers there, with 75% of the top 50k users below 4200 points.</p>
+
+<p>```</p>
+
+<blockquote><p>quantile(users$reputation)</p>
+
+<pre><code>   0%       25%       50%       75%      100% 
+</code></pre>
+
+<p>  1024.00   1415.00   2178.00   4214.25 618862.00
+```</p></blockquote>
+
+<p>So what happens when we look at the distribution considering the 75% of the users, that are in fact below 4215 points?</p>
+
+<p><img class="center" src="/images/blog/first-three-quantiles.png" width="680" height="780" title="'First three quantiles'" ></p>
+
+<p>Well <strong>that's something!</strong> Now distribution looks pretty much alike.</p>
+
+<p>Seems to me those outliers, that are mostly men, are well beyond everyone else, men or women.</p>
+
+<p>How do <em>you</em> read that data?</p>
+
+<h1>Wrap up</h1>
+
+<p>At 4% females, SO seems to be suffering the same phenomena occurring in the <em>real world</em>, that is, women being underrepresented,
+but being SO a strongly moderated virtual community the problem can't be related to harassment.
+So, there's something else going on, is it that SO is designed for male competitiveness,
+being the site designed exclusively by males -there were no women on the team AFAIK-?</p>
+
+<p>Isn't it the reason you want diversity on your teams to start with? To provide a different perspective on the world, that enables you to reach <em>everyone</em>.</p>
+
+<p>In my opinion, that's why women should be part of the <em>creation</em> process, don't you think?</p>
+
+<p>None the less, a large group of men are acting as if they already know what women need,
+and as patriarchy mandates, providing it, creating programs, making conferences
+and burning witches, but not a single soul has asked women what they think, want, or need.</p>
+
+<p>For a change, I've put up <a href="https://docs.google.com/forms/d/1g3FfFKz70HTuFWug609Zkc_5lZzldPkG_ubidjl2oTA/viewform">an anonymous survey online</a> with the purpose of understanding how women who are already in tech,
+feel, if you have a female coworker, friend or colleague please share it,
+we may even find some interesting insights if we start listening.</p>
+
+<p><em>I'm <a href="http://www.twitter.com/guilespi">guilespi</a> at Twitter</em></p>
+
+<h1>Survey</h1>
+
+<p>Share the link above or take the survey here:</p>
+
+<iframe src="https://docs.google.com/forms/d/1g3FfFKz70HTuFWug609Zkc_5lZzldPkG_ubidjl2oTA/viewform?embedded=true" width="760" height="500" frameborder="0" marginheight="0" marginwidth="0">Loading...</iframe>
+
+
+
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[How long waiting for an answer in StackOverflow]]></title>
+    <link href="http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/"/>
+    <updated>2012-10-30T23:52:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow</id>
+    <content type="html"><![CDATA[<p>I'm not a <a href="http://www.stackoverflow.com">StackOverflow</a> active contributor, something I recently decided should start to change.</p>
+
+<p>I think it's amazing the <code>speed</code> an answer is given for any asked question, like <em>freaking</em> fast. If you are using Google Reader to peek new questions filtered by tag, when you see a question, almost for sure it's already answered.</p>
+
+<p>Fortunately all StackExchange data is <a href="http://media10.simplex.tv/content/xtendx/stu/stackoverflow/">open</a>, so we can see exactly <em>how</em> fast is that. I used the online <a href="http://data.stackexchange.com/faq">data browser</a>, more than enough for the task.</p>
+
+<p>I decided to consider only the questions having an accepted answer, since questions with many bogus answers should not be treated as having an answer at all.</p>
+
+<p><strong>tl;dr</strong></p>
+
+<p>The average answer time seems to be dependent on a mix of the maturity of the language and how many people is using it.</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguage5.png" width="550" height="650" title="'How long waiting for an answer by language, easy questions'" ></p>
+
+<p>Hey, Haskell has pretty good answer times, at least considering its <a href="http://www.tiobe.com/index.php/content/paperinfo/tpci/index.html">33th</a> position in the <a href="http://en.wikipedia.org/wiki/TIOBE_index">TIOBE Index</a>.</p>
+
+<p><strong>Not all questions are the same</strong></p>
+
+<p>Of course not all questions are the same, this is from the first query I ran.</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguageunfiltered.png" width="550" height="650" title="'How long waiting for an answer by language, all questions'" ></p>
+
+<p>This is an unfiltered query using all the questions from year 2012, you see the average answer time is much higher than the previous chart, around 1000 minutes, looking at the data:</p>
+
+<pre><code>Language    Ans. Time         Stdev
+c               934       7630.98957971267
+c++            1036       7258.13498426685
+clojure        1078       7485.94721484444
+haskell        1199       9059.91937846459
+php            1210       8588.58929278208
+lua            1386       6569.08356022594
+c#             1452       8875.00837073432
+scala          1472      10707.9191188056
+javascript     1490       9756.64151519177
+java           1755      10541.6111024572
+ruby           2124      11850.4353701107
+</code></pre>
+
+<p>The standard deviation is huge, we have a lot of questions that took ages to get answered, making the average answer time meaningless.</p>
+
+<p>So I decided to take out questions with an answer time greater than 24 hours, as 92% of the questions have an approved answer in less than 5 hours.
+(<a href="https://gist.github.com/3984320">here</a> you can see the query used to get this table)</p>
+
+<pre><code>DifficultyGroup    Total     Average              StandardDev
+Easy                47099        27           44.7263057563449 
+Medium                344       691          339.312936469053
+Hard                 1926      3769         2004.75027395979
+Hell                 1623     66865        96822.8840748525
+</code></pre>
+
+<p>It started to look like something:</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguage24.png" width="550" height="650" title="'How long waiting for an answer by language, less than 24 hours'" >
+<a href="https://gist.github.com/3984333">This</a> is the query.</p>
+
+<p>You see there, PHP running at front with 68 minutes average accepted answer time, either it's too easy or there're too many of them.</p>
+
+<p>If you wanna see how the distribution goes when considering accepted answers in less than 5 hours, is the first picture of the page, the trend is also there.</p>
+
+<p><strong>What about the time?</strong></p>
+
+<p>Something unexpected, average answer time is almost unaffected by the time of the day the question was asked.
+The only thing I see here is that Ruby programmers are being killed by the lunch break and c++ programmers slowly fade out with the day, ain't it?</p>
+
+<p><img class="center" src="/images/blog/averageanswerhourbyhour.png" width="550" height="650" title="'How long waiting for an answer by time of day, ruby and c++'" ></p>
+
+<p><a href="https://gist.github.com/3984329">This</a> is the query.</p>
+
+<p>There goes my idea of catching unanswered questions at night. It would be interesting to see how many cross-timezone answering is happening.</p>
+
+<p><strong>Conclusion</strong></p>
+
+<p>It should work better running a regression against the complete dataset using more features than only programming language and time of day
+ to automatically guess which questions have more chance of have a long life unanswered. Maybe next time.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">Twitter</a></em></p>
+]]></content>
+  </entry>
+  
+</feed>

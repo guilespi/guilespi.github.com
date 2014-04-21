@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: coursera | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/coursera/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2014-04-21T19:02:31-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Computational Investment QSTK Framework from Python to Clojure]]></title>
+    <link href="http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/"/>
+    <updated>2012-10-29T01:07:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure</id>
+    <content type="html"><![CDATA[<p>Last week started the course on <a href="https://class.coursera.org/compinvesting1-2012-001/class/index">Computational Investing</a> from Coursera and I've been taking a look.</p>
+
+<p>What caught my attention is the libraries used for portfolio construction and management, <a href="http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit">QSTK</a>, an opensource python framework, based on numpy, scipy, matplotlib, pandas, etc.</p>
+
+<p>Looking at the <a href="http://wiki.quantsoftware.org/index.php?title=QSTK_Tutorial_1">first tutorial</a>'s <a href="https://gist.github.com/3971007">source code</a>, saw it as an opportunity to migrate the tutorials and libraries to Clojure and get to play a little with <a href="http://incanter.org/">Incanter</a>.</p>
+
+<p>I'm going to highlight what I've found interesting when migrating the tutorials. I'm assuming you have QSTK installed and the QS environment variable is set, since the code depends on that for data reading.</p>
+
+<p><code>clojure
+(def ^{:dynamic true} *QS* (get (System/getenv) "QS"))
+</code></p>
+
+<p><strong>NYSE operation dates</strong></p>
+
+<p>As part of the initialization process the tutorial calls a function <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.dateutil-pysrc.html#getNYSEdays">getNYSEDays</a>, which retrieves all the days there was trading at the NYSE. Migration is straightforward using incanter's read-dataset to read file into memory and then filter the required range.</p>
+
+<p><div><script src='https://gist.github.com/3970987.js'></script>
+<noscript><pre><code>(defn get-NYSE-days
+  &quot;Create a set of timestamps between startday and endday
+  that correspond to the days there was trading at the NYSE&quot;
+  [start-date end-date time-of-day]
+  (let [dates-file (str *QS* &quot;/qstkutil/NYSE_dates.txt&quot;)
+        NYSE-dates (incanter.io/read-dataset dates-file)
+        fmt (formatter &quot;MM/dd/yyyy&quot;)
+        dates (incanter.core/$map #(parse fmt %) :col0 NYSE-dates)]
+    (set (filter (fn [d] (within? (interval start-date end-date) d))
+           (map #(plus % time-of-day) dates)))))
+</code></pre></noscript></div>
+</p>
+
+<p>Pay attention to the <code>time-of-day</code> set at 16 hours, <a href="http://en.wikipedia.org/wiki/List_of_market_opening_times">the time NYSE closes</a>, we'll see it again in unexpected places.</p>
+
+<p><strong>Data Access</strong></p>
+
+<p>QSTK provides a helper class called <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.DataAccess.DataAccess-class.html">DataAccess</a> used for reading and caching stock prices.</p>
+
+<p>As you see here there's some data reading happening, we're gonna take a look at these functions since we'll need to write them from scratch.</p>
+
+<p><code>python Data initialization in python tutorial
+dataobj = da.DataAccess('Yahoo')
+voldata = dataobj.get_data(timestamps, symbols, "volume",verbose=True)
+close = dataobj.get_data(timestamps, symbols, "close",verbose=True)
+actualclose = dataobj.get_data(timestamps, symbols, "actual_close",verbose=True)
+</code>
+We're going to separate this in two functions, first reading symbol data from disk using again read-dataset and creating a hash-map indexed by symbol name.</p>
+
+<p>``` Clojure Creating a symbols hash-map of incanter datasets
+(defn read-symbols-data
+  "Returns a hashmap of symbols/incanter datasets read from QS data directory"
+  [source-in symbols]
+  (let [data-dir (str <em>QS</em> "/QSData/" source-in "/")]</p>
+
+<pre><code>(reduce #(assoc %1 %2 (incanter.io/read-dataset (str data-dir %2 ".csv") :header true)) {} symbols)))
+</code></pre>
+
+<p>```</p>
+
+<p>Then if you take a look at <code>voldata</code> in a python repl, you can see pretty much what it's doing</p>
+
+<pre><code>                       AAPL       GLD     GOOG        $SPX       XOM
+ 2012-05-01 16:00:00  21821400   7414800  2002300  2706893315  13816900
+ 2012-05-02 16:00:00  15263900   5632300  1611500  2634854740  11108700
+ 2012-05-03 16:00:00  13948200  13172000  1868000  2673299265   9998600
+</code></pre>
+
+<p>It's grabbing the specified column <code>volume</code> or <code>close</code> from each symbol dataset, and it's creating a new table with the resulting column renamed as the symbol.</p>
+
+<p>All the get_data magic happens inside <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.DataAccess-pysrc.html#DataAccess.get_data_hardread">get_data_hardread</a>, it's an ugly piece of code making a lot of assumptions about column names, and even about market closing time. I guess you can only use this library for markets closing at 16 hours local time.</p>
+
+<p><code>python
+timemonth = int((timebase-timeyear*10000)/100)
+timeday = int((timebase-timeyear*10000-timemonth*100))
+timehour = 16
+</code></p>
+
+<p>I've translated that into these two functions:</p>
+
+<p><div><script src='https://gist.github.com/3971076.js'></script>
+<noscript><pre><code>(defn select-value
+  &quot;Given a dataset indexed by date, returns the value corresponding to a specified column
+  if existent for a specific date&quot;
+  [ds column date]
+  (let [row (ds {:Date date})]
+    (when-not (nil? row) (incanter.core/$ 0 column row))))
+
+(defn get-data
+  &quot;Given a list of `symbols`, its data and a list of specific `timestamps`, builds a matrix(sequence)
+  with each column corresponding to a stock and the value extracted using `column` 
+  :Date        AAPL    GOOG    WFC
+  2012-02-01   54.1    33.1    25.0
+  2012-02-02   56.3    33.4    22.9&quot;
+  [timestamps symbols column symbols-data time-of-day]
+  (let [grouped-data (reduce (fn [m, s] (assoc m (s 0) (incanter.core/$group-by :Date (s 1)))) {} symbols-data)]
+    (for [t timestamps]
+      (let [unparsed-date (unparse (formatters :year-month-day) t)]
+        (reduce #(merge %1 {(%2 0) (select-value (%2 1) column unparsed-date)}) {:Date (to-long t)} grouped-data)))))</code></pre></noscript></div>
+</p>
+
+<p>In this case Clojure shines, the <a href="https://gist.github.com/3971102">original function</a> is almost 300 lines of code. I'm missing a couple of checks but it's not bad for a rookie, I think.</p>
+
+<p>The helper function <code>select-value</code> is there in order to avoid an exception when trying to find stock data for a non existent date. Also the function returns <code>:Date</code> as a double since it's easier to handle later for charting.</p>
+
+<p><strong>Charting</strong></p>
+
+<p>Charting with Incanter is straightforward, there a subtle difference with python since you need to add each series one by one. So what python is doing here charting multiple series at once</p>
+
+<p><code>python
+newtimestamps = close.index                                                                                                                                                     
+pricedat = close.values # pull the 2D ndarray out of the pandas object
+plt.plot(newtimestamps,pricedat)
+</code></p>
+
+<p>We need a little function to solve it with Incanter. Each iteration gets reduced into the next with all the series accumulated in one chart.</p>
+
+<p>``` clojure creates multiple time-series at once
+(defn multi-series-chart
+  "Creates a xy-chart with multiple series extracted from column data
+  as specified by series parameter"
+  [{:keys [series title x-label y-label data]}]
+  (let [chart (incanter.charts/time-series-plot :Date (first series)</p>
+
+<pre><code>                                             :x-label x-label
+                                             :y-label y-label
+                                             :title title
+                                             :series-label (first series)
+                                             :legend true
+                                             :data data)]
+</code></pre>
+
+<p>  (reduce #(incanter.charts/add-lines %1 :Date %2 :series-label %2 :data data) chart (rest series))))
+```</p>
+
+<p><strong>Data Mangling</strong></p>
+
+<p>Incanter has <em>a lot</em> of built-in functions and helpers to operate on your data, unfortunately I couldn't use one of the many options for operating
+on a matrix, or even <code>$=</code>, since the data we're processing has many <code>nil</code> values inside the dataset for dates the stock didn't trade which raises an exception when
+treated as a number, which is what to-matrix does, tries to create an array of Doubles.</p>
+
+<p>There's one more downside and it's we need to keep the <code>:Date</code> column as-is when operating on the dataset, so we need to remove it, operate, and add it later again, what happens to be a beautiful one-liner in python</p>
+
+<p><code>python This attempts a naive normalization dividing each row by the first one.
+ normdat = pricedat/pricedat[0,:]
+</code></p>
+
+<p><code>python Or the daily return function.
+dailyrets = (pricedat[1:,:]/pricedat[0:-1,:]) - 1
+</code></p>
+
+<p>I ended up writing from scratch the iteration and function applying code.</p>
+
+<p><div><script src='https://gist.github.com/3971236.js'></script>
+<noscript><pre><code>
+(defmacro apply-filtered
+  &quot;Given two sequences, apply a function to each pair of elements when condition is met
+  anaphoras n and m exists for each indexed element
+
+  e.g. (apply-filtered / [1 2 3] [1 0 3] when (&gt; m 0)) =&gt; (1 nil 1)
+  &quot;
+  [op a b &amp; condition]
+  `(for [x# (range (count ~a))]
+    (let [n# (nth ~a x#)
+          m# (nth ~b x#)]
+      (when (~(second condition) n# m#)
+        (~op n# m#)))))
+
+(defmacro apply-rows
+  &quot;Apply an operation to each row of the dataset excluding :Date column
+   A start row and a condition must be given
+
+  .e.g Divide each row by vector [1 0 3] starting from 0 validating divide by zero
+    (apply-rows ds (/ [1 2 3]) 0 (fn [n m] (&gt; m 0))&quot;
+  [data operation start cond]
+  `(let [raw-data# (incanter.core/$ :all [:not :Date] ~data)
+        raw-cols# (incanter.core/col-names raw-data#)
+        dates# (incanter.core/$ :all :Date ~data)] 
+       (incanter.core/col-names
+        (incanter.core/conj-cols
+         (for [~&#39;i (range ~start (incanter.core/nrow raw-data#))]
+           (apply-filtered
+                      ~(first operation)
+                      (vec (incanter.core/$ ~&#39;i [:not :Date] raw-data#))
+                      ~(second operation)
+                      :when ~cond))
+         dates#) (conj raw-cols# :Date))))
+</code></pre></noscript></div>
+</p>
+
+<p>Maybe there's an easier way but I couldn't think of it, if you know a better way please drop me a line!</p>
+
+<p>Now normalization and daily-returns are at least manageable.</p>
+
+<p>``` clojure Normalization and Daily Returns</p>
+
+<p>(defn normalize
+  "Divide each row in a dataset by the first row"
+  [ds]
+  (let [first-row (vec (incanter.core/$ 0 [:not :Date] ds))]</p>
+
+<pre><code>(apply-rows ds (/ first-row) 0 (fn [n m] (and (not-any? nil? [n m]) (&gt; m 0))))))
+</code></pre>
+
+<p>(defn daily-rets
+  "Daily returns"
+  [data]
+  (apply-rows data</p>
+
+<pre><code>        ((fn [n m] (- (/ n m) 1)) (vec (incanter.core/$ (- i 1) [:not :Date] data)))
+        1
+        (fn [n m] (and (not-any? nil? [n m]) (&gt; m 0)))))
+</code></pre>
+
+<p>```</p>
+
+<p>Having the helper functions done, running of the tutorial is almost declarative.</p>
+
+<p><div><script src='https://gist.github.com/3971246.js'></script>
+<noscript><pre><code>(defn run
+  []
+  (let [symbols [&quot;AAPL&quot;,&quot;GLD&quot;,&quot;GOOG&quot;,&quot;$SPX&quot;,&quot;XOM&quot;]
+        start-day (date-time 2012 1 1)
+        end-day (date-time 2012 12 31)
+        time-of-day (hours 16)
+        timestamps (get-NYSE-days start-day end-day time-of-day)
+        symbols-data (read-symbols-data &quot;Yahoo&quot; symbols)
+        adj-close-data (incanter.core/to-dataset
+                        (get-data timestamps symbols (keyword &quot;Adj Close&quot;) symbols-data time-of-day))]
+    (do
+      ;;first chart of the tutorial
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Adjusted Close&quot;
+                                               :title &quot;Adjusted close data&quot;
+                                               :data adj-close-data}))
+      ;;second chart of the tutorial
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Adjusted Close&quot;
+                                               :title &quot;Normalized close data&quot;
+                                               :data (normalize adj-close-data)}))
+      ;;daily returns
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Return&quot;
+                                               :title &quot;Daily Returns&quot;
+                                               :data (daily-rets adj-close-data)}))
+      ;;quotes comparison with scatter plot
+      (incanter.core/view (incanter.charts/scatter-plot
+                           &quot;AAPL&quot; &quot;GOOG&quot;
+                           :x-label &quot;AAPL&quot;
+                           :y-label &quot;GOOG&quot;
+                           :legend true
+                           :data (normalize adj-close-data)
+                           )))))</code></pre></noscript></div>
+</p>
+
+<p>If you wanna take a look at the whole thing together here's the <a href="https://gist.github.com/3971253">gist</a>, I may create a repo later.</p>
+
+<p><img class="center" src="/images/blog/chartincanter.png" width="380" height="480" title="'Incanter charting finance data'" ></p>
+
+<p>Please remember NumPy is way much faster than Clojure since it links <a href="http://www.netlib.org/lapack/">BLAS/Lapack</a> libraries.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">twitter</a></em></p>
+]]></content>
+  </entry>
+  
+</feed>

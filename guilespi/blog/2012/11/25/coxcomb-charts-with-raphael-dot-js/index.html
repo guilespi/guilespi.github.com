@@ -1,0 +1,454 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Coxcomb Charts with Raphael.js - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="The coxcomb chart was first used by Florence Nightingale to persuade Queen Victoria about improving
+conditions in the military hospitals during the &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2012/11/25/coxcomb-charts-with-raphael-dot-js/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">Coxcomb Charts With Raphael.js</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-11-25T18:21:00-02:00" pubdate data-updated="true">Nov 25<span>th</span>, 2012</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>The coxcomb chart was first used by Florence Nightingale to persuade Queen Victoria about improving
+conditions in the military hospitals during the Crimean War.</p>
+
+<p><img class="center" src="/images/blog/coxcomb-nightingale.jpg" width="480" height="680" title="'Nightingale coxcomb'" ></p>
+
+<p>As you see it serves the same purpose as a traditional barchart, but displays the information in
+a coxcomb flower pattern.</p>
+
+<p>I couldn&#8217;t find something already done that suited my needs, so I made one my self.</p>
+
+<p>It&#8217;s slightly modified from the original design, since it doesn&#8217;t display the bars stacked but side by side, I think it&#8217;s better
+to display superposed labels that way.</p>
+
+<p><strong>Death and Mortality</strong></p>
+
+<script type="text/javascript" src="https://raw.github.com/guilespi/resume-of-sorts/master/scripts/jquery-1.7.2.min.js"></script>
+
+
+<script type="text/javascript" src="https://raw.github.com/guilespi/resume-of-sorts/master/scripts/raphael-min.js"></script>
+
+
+<script type="text/javascript" src="https://raw.github.com/guilespi/coxcomb-chart/master/src/coxcomb.js"></script>
+
+
+<div id="deaths"></div>
+
+
+<script type="text/javascript">
+  var deaths = {
+     data : { 
+         jan : {
+            disease : 50,
+            wounds : 20
+         },
+         feb : {
+            disease : 60,
+            wounds : 35
+         },
+         mar : {
+            disease : 80,
+            wounds : 50
+         },
+         apr : {
+            disease : 70,
+            wounds : 20
+         },
+         may : {
+            disease : 30,
+            wounds : 60
+         },
+         jun : {
+            disease : 75,
+            wounds : 22
+         },
+         jul : {
+            disease : 66,
+            wounds : 65
+         },
+         aug : {
+            disease : 30,
+            wounds : 14
+         },
+         sep : {
+            disease : 50,
+            wounds : 14
+         },
+         oct : {
+            disease : 24,
+            wounds : 32
+         },
+         nov : {
+            disease : 30,
+            wounds : 44
+         },
+         dec : {
+            disease : 50,
+            wounds : 5
+         },
+     },
+     colors : {
+        category : "#2B2B2B",
+        opacity : 0.8,
+        fontColor: "#fff",
+        bySeries : {
+            disease  : {
+              color : "#E9E581",
+              opacity : 0.8,
+              fontColor: "#000",
+            },
+            wounds : {
+              color: "#DE1B1B",
+              opacity: 0.7,
+              fontColor: "#fff"
+            }
+        }
+      } 
+    }; 
+    var paperWidth = 600;
+    var paperHeight = paperWidth * 0.8;
+    var lastSelection;
+    var properties = {
+        categorySize : 0.20,
+        categoryFontSize: paperWidth > 500 ? 10 : 6,
+        seriesFontSize: paperWidth > 500 ? 10 : 6,
+        onClick: function(polygon, text) {
+            if (lastSelection) {
+                lastSelection.remove();
+            }
+            lastSelection = polygon.glow();
+        },
+        stroke: "#fff"
+    };
+    Raphael("deaths", paperWidth, paperHeight)
+            .coxCombChart(paperWidth / 2,paperHeight / 2, paperHeight / 2, deaths, properties);
+</script>
+
+
+<p>Feeding data into the chart is straightforward</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+</pre></td><td class='code'><pre><code class='javascript'><span class='line'><span class="nx">deaths</span> <span class="o">=</span> <span class="p">{</span>
+</span><span class='line'>   <span class="nx">data</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>       <span class="nx">jan</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">disease</span> <span class="o">:</span> <span class="mi">180</span><span class="p">,</span>
+</span><span class='line'>          <span class="nx">wounds</span> <span class="o">:</span> <span class="mi">20</span>
+</span><span class='line'>       <span class="p">},</span>
+</span><span class='line'>       <span class="nx">feb</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">disease</span> <span class="o">:</span> <span class="mi">140</span><span class="p">,</span>
+</span><span class='line'>          <span class="nx">wounds</span> <span class="o">:</span> <span class="mi">35</span>
+</span><span class='line'>       <span class="p">},</span>
+</span><span class='line'>       <span class="nx">mar</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">disease</span> <span class="o">:</span> <span class="mi">80</span><span class="p">,</span>
+</span><span class='line'>          <span class="nx">wounds</span> <span class="o">:</span> <span class="mi">50</span>
+</span><span class='line'>       <span class="p">},</span>
+</span><span class='line'>       <span class="nx">may</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>          <span class="nx">disease</span> <span class="o">:</span> <span class="mi">40</span><span class="p">,</span>
+</span><span class='line'>          <span class="nx">wounds</span> <span class="o">:</span> <span class="mi">40</span>
+</span><span class='line'>       <span class="p">},</span>
+</span><span class='line'>       <span class="p">...</span>
+</span><span class='line'>    <span class="nx">colors</span> <span class="o">:</span> <span class="p">{</span>
+</span><span class='line'>        <span class="p">...</span>
+</span><span class='line'>    <span class="p">}</span>
+</span><span class='line'><span class="p">}</span>
+</span><span class='line'><span class="nx">Raphael</span><span class="p">(</span><span class="s2">&quot;deaths&quot;</span><span class="p">,</span> <span class="nx">width</span><span class="p">,</span> <span class="nx">height</span><span class="p">).</span>
+</span><span class='line'>    <span class="nx">coxCombChart</span><span class="p">(</span><span class="nx">width</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="nx">height</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="nx">height</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span> <span class="nx">deaths</span><span class="p">,</span> <span class="nx">properties</span><span class="p">);</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I&#8217;ve used it to show some skills in a <a href="http://resume.guillermowinkler.com">resume-of-sorts</a> if you wanna see a color strategy by category and not by series.</p>
+
+<p><strong>Lie Factor Warning</strong></p>
+
+<p>The received values are normalized and the maximum value takes the complete radius of the coxcomb. Be warned,
+each value is normalized and only the radius is affected, not the complete area of the disc sector.
+This may introduce visualization problems as the ones pointed by <a href="http://www.amazon.com/Visual-Display-Quantitative-Information/dp/0961392142">Edward Tufte</a>, with x10 lie factors or more, as in the following known case with a 9.4
+lie factor.</p>
+
+<p><img class="center" src="/images/blog/barreltufte.jpg" width="280" height="480" title="'Lie factor 9.4, Edward Tufte, The Visual Display of Quantitative Information'" ></p>
+
+<p>I may fix it if someone founds this useful, the area for the formulas are on <a href="http://understandinguncertainty.org/node/214">this website</a>. The source code is <a href="https://github.com/guilespi/coxcomb-chart">on github</a>.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">Twitter</a></em></p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-11-25T18:21:00-02:00" pubdate data-updated="true">Nov 25<span>th</span>, 2012</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/programming/'>programming</a>, <a class='category' href='/blog/categories/raphael/'>raphael</a>, <a class='category' href='/blog/categories/visualization/'>visualization</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2012/11/25/coxcomb-charts-with-raphael-dot-js/" data-via="" data-counturl="http://guilespi.github.com/blog/2012/11/25/coxcomb-charts-with-raphael-dot-js/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/" title="Previous Post: Neither types nor tests will solve your data coverage problem">&laquo; Neither types nor tests will solve your data coverage problem</a>
+      
+      
+        <a class="basic-alignment right articlenav" href="/blog/2013/01/29/build-yourself-a-dialer-with-clojure-and-asterisk/" title="Next Post: Build yourself a dialer with Clojure and Asterisk">Build yourself a dialer with Clojure and Asterisk &raquo;</a>
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What's so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen's club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2012/11/25/coxcomb-charts-with-raphael-dot-js/';
+        var disqus_url = 'http://guilespi.github.com/blog/2012/11/25/coxcomb-charts-with-raphael-dot-js/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

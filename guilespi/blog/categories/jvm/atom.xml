@@ -1,0 +1,386 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: jvm | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/jvm/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2014-04-21T19:02:31-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Decompiling Clojure II, The Compiler]]></title>
+    <link href="http://guilespi.github.com/blog/2014/04/21/decompiling-clojure-ii/"/>
+    <updated>2014-04-21T01:03:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2014/04/21/decompiling-clojure-ii</id>
+    <content type="html"><![CDATA[<p>This is the second post in the Decompiling Clojure series, <a href="blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">in the first post</a> I showed what Clojure looks like in bytecode.</p>
+
+<p>For this entry, I'll do a compiler overview, the idea is to understand why and how does Clojure looks like that.</p>
+
+<p>For other decompilation scenarios you don't usually have the advantage of looking at the compiler internals to guide your decompiling algorithms, so we'll take our chance to peek at the compiler now.</p>
+
+<p>We will visit some compiler source code, so be warned, there's Java ahead.</p>
+
+<h2>It's Java</h2>
+
+<p>Well, yes, the Clojure compiler targeting the JVM is written in Java, <a href="https://github.com/Bronsa/CinC">there is an ongoing effort</a> to have a Clojure-in-Clojure compiler, but the original compiler is nowhere near of being replaced.</p>
+
+<p>The source code <a href="https://github.com/clojure/clojure">is hosted on GitHub</a>, but the development process is <a href="http://dev.clojure.org/display/community/JIRA+workflow">a little bit more convoluted</a>, which means you don't just send pull requests for it, <a href="https://groups.google.com/d/msg/clojure/0gwjKtatf-0/dOMECoHPlM4J">it was asked for many times</a> and I don't think it's about to change, so if you wanna contribute, <a href="http://clojure.org/contributing">just sign the contributors agreement</a> and follow the rules.</p>
+
+<h2>The CinC Alternative</h2>
+
+<p>The Clojure-in-Clojure alternative is not only different because it's written in Clojure, but because it's built with extensibility and modularization in mind.</p>
+
+<p>In the original Clojure compiler you don't have a chance to extend, modify or use, many of the data produced by the compilation process.</p>
+
+<p>For instance the <a href="https://github.com/clojure/core.typed">Typed Clojure</a> project, which adds <a href="http://wphomes.soic.indiana.edu/jsiek/what-is-gradual-typing/">gradual typing</a> to Clojure, <a href="http://dev.clojure.org/display/design/Provide+friendly+interface+to+Clojure's+analyzer,+independently+callable+a+la+carte">needed a friendlier interface</a> to the compiler analyzer phase. It was first developed by Ambrose Bonnair-Sergeant <a href="https://github.com/frenchy64/analyze">as an interface to the Compiler analyzer</a> and then moved to be part of the <a href="https://github.com/clojure/tools.analyzer">CinC analyzer</a>.</p>
+
+<p>The CinC alternative is modularized in -at least three- different parts.</p>
+
+<ul>
+<li><a href="https://github.com/clojure/tools.analyzer">The analyzer</a>, meant to be shared among all Clojure compilers (as Clojurescript)</li>
+<li><a href="https://github.com/clojure/tools.analyzer.jvm">The JVM analyzer</a>, contains specific compiler passes for the JVM (for instance locals clearing is done here)</li>
+<li><a href="https://github.com/clojure/tools.emitter.jvm">The bytecode emitter</a>, actually emits JVM bytecode.</li>
+</ul>
+
+
+<p>There's <a href="http://www.youtube.com/watch?v=KhRQmT22SSg">a great talk from Timothy Baldridge</a> showing some examples using the CinC analyzer, watch it.</p>
+
+<h2>Compilation process</h2>
+
+<p>One of supposed advantages of Lisp-like languages is that the concrete syntax is already the abstract syntax. If you've read some of the <a href="http://www.twitter.com/fogus">fogus</a> <a href="http://blog.fogus.me/tag/clj-compilation/">writings about Clojure compilation</a> tough, he has some opinions on that statement:</p>
+
+<p><blockquote><p>This is junk. Actual ASTs are adorned with a boatload of additional information like local binding information, accessible bindings, arity information, and many other useful tidbits.</p><footer><strong>fogus</strong> <cite><a href='http://blog.fogus.me/2012/04/25/the-clojurescript-compilation-pipeline/'>blog.fogus.me/2012/04/25/&hellip;</a></cite></footer></blockquote></p>
+
+<p>And he's right, but there's one more thing, Clojure and Lisp syntax are just serialization formats, mapping to the underlying data structure of the program.</p>
+
+<p>That's why Lisp like languages are easier to parse and unparse, or build tools for them, because the program data structure is accesible to the user and not only to the compiler.</p>
+
+<p>Also that's the reason why macros in Lisp or Clojure are so different than <a href="http://docs.scala-lang.org/overviews/macros/overview.html">macros in Scala</a>, where the pre-processor handles you an AST that has nothing to do with the Scala language itself.</p>
+
+<p>That's the proper definition of <a href="http://en.wikipedia.org/wiki/Homoiconicity">homoiconicity</a> by the way, the syntax is isomorphic with the AST.</p>
+
+<h2>Compiler phases</h2>
+
+<p>In general compilers can be broken up into three pieces</p>
+
+<ol>
+<li>Lexer/Parser</li>
+<li>Analyzer</li>
+<li>Emitter</li>
+</ol>
+
+
+<p>Clojure kind of follows this pattern, so if we're compiling a Clojure program the <em>very</em> high level approach to the compilation pipeline would be:</p>
+
+<ol>
+<li>Read file</li>
+<li>Read s-expression</li>
+<li>Expand macros if present</li>
+<li>Analyze</li>
+<li>Generate JVM bytecode</li>
+</ol>
+
+
+<p>The first three steps are the <em>Reading</em> phase <a href="http://blog.fogus.me/2012/04/25/the-clojurescript-compilation-pipeline/">from the fogus article</a>.</p>
+
+<p>There is one important thing about these steps:</p>
+
+<p>Bytecode has <strong>no information about macros whatsoever</strong>, emitted bytecode corresponds to what you see with <a href="http://clojuredocs.org/clojure_core/clojure.core/macroexpand">macroexpand</a> calls.
+Since macros are expanded before analyzing, you shouldn't expect to find anything about your macro in the compiled bytecode, nada, niet, gone.</p>
+
+<p>Meaning, we shouldn't expect to be able to properly decompile macro'ed stuff either.</p>
+
+<h2>Compile vs. Eval</h2>
+
+<p>As said on the first post, the <code>class</code> file doesn't need to be on disk, and that's better understood if we think about <a href="http://clojuredocs.org/clojure_core/1.2.0/clojure.core/eval">eval</a>.</p>
+
+<p>When you type a command in the <code>REPL</code> it needs to be properly translated to bytecode before the JVM is able to execute it, but it doesn't mean the compiler will save a <code>class</code> file, then load it, and only then execute it.</p>
+
+<p>It will be done on the fly.</p>
+
+<p>We will consider three entry points for the compiler, <code>compile</code>, <code>load</code> and <code>eval</code>.</p>
+
+<p><img class="center" src="/images/blog/compiler-reader.png" width="580" height="380" title="Compiler entry point" alt="Compiler entry points"></p>
+
+<p>The <code>LispReader</code> is responsible for reading forms from an input stream.</p>
+
+<h3>Compile Entry Point</h3>
+
+<p><code>compile</code> is a static function found in the <code>Compiler.java</code> file, member of the <code>Compiler</code> class, and it does generate a <code>class</code> file on disk for each function in the compiled namespace.</p>
+
+<p>For instance it will get called if you do the following in your REPL</p>
+
+<p><code>clojure
+(compile 'clojure.core.reducers)
+</code></p>
+
+<p>Clojure function just wraps over the Java function doing the actual work with the signature</p>
+
+<p><div class='bogus-wrapper'><notextile><figure class='code'><figcaption><span>compile</span><a href='https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L7162'>Compiler.java </a></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kd">public</span> <span class="kd">static</span> <span class="n">Object</span> <span class="nf">compile</span><span class="o">(</span><span class="n">Reader</span> <span class="n">rdr</span><span class="o">,</span> <span class="n">String</span> <span class="n">sourcePath</span><span class="o">,</span> <span class="n">String</span> <span class="n">sourceName</span><span class="o">)</span> <span class="kd">throws</span> <span class="n">IOException</span><span class="o">{</span>
+</span></code></pre></td></tr></table></div></figure></notextile></div></p>
+
+<p>Besides all the preamble, <a href="https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L7214-L7221">the core of the function</a> is just a loop which reads and calls the <code>compile1</code> function for each form found in the file.</p>
+
+<p>```java
+for(Object r = LispReader.read(pushbackReader, false, EOF, false); r != EOF;</p>
+
+<pre><code>        r = LispReader.read(pushbackReader, false, EOF, false))
+{
+     compile1(gen, objx, r);
+}
+</code></pre>
+
+<p>```</p>
+
+<p>As we expect, <a href="https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L7138-L7154">the compile1 function does macro expansion</a> before analyzing or emitting anything, if <code>form</code> turns out to be a list it recursively calls itself, which is
+the <code>then</code> branch of the if test:</p>
+
+<p>```java
+form = macroexpand(form);
+if(form instanceof IPersistentCollection &amp;&amp; Util.equals(RT.first(form), DO))
+  {</p>
+
+<pre><code>for(ISeq s = RT.next(form); s != null; s = RT.next(s))
+{
+    compile1(gen, objx, RT.first(s));
+}
+</code></pre>
+
+<p>  }
+else
+  {</p>
+
+<pre><code>Expr expr = analyze(C.EVAL, form);
+    ....
+expr.emit(C.EXPRESSION, objx, gen);
+expr.eval();
+</code></pre>
+
+<p>  }
+```</p>
+
+<p>The <code>analyze</code> function we see on the <code>else</code> branch does the proper <code>s-expr</code> analyzing which emits and evals itself afterwards, more on analyzing ahead.</p>
+
+<h3>Load Entry Point</h3>
+
+<p>The <code>load</code> function gets called any time we do a <code>require</code> for a not pre-compiled namespace.</p>
+
+<p><div class='bogus-wrapper'><notextile><figure class='code'><figcaption><span>load</span><a href='https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L7032'>link</a></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kd">public</span> <span class="kd">static</span> <span class="n">Object</span> <span class="nf">load</span><span class="o">(</span><span class="n">Reader</span> <span class="n">rdr</span><span class="o">,</span> <span class="n">String</span> <span class="n">sourcePath</span><span class="o">,</span> <span class="n">String</span> <span class="n">sourceName</span><span class="o">)</span> <span class="o">{</span>
+</span></code></pre></td></tr></table></div></figure></notextile></div></p>
+
+<p>For instance, say we do a require for the <code>clojure.core.reducers</code> namespace:</p>
+
+<p><code>clojure
+(require '[clojure.core.reducers :as r])
+</code></p>
+
+<p>The <code>clj</code> file will be read as a stream in the <code>loadResourceScript</code> function and passed as the first <code>rdr</code> parameter of the <code>load</code> function.</p>
+
+<p>You see the <code>load</code> function has a pretty similar read form and eval loop as the one we saw in the compile function.</p>
+
+<p><code>java
+for(Object r = LispReader.read(pushbackReader, false, EOF, false); r != EOF;
+r = LispReader.read(pushbackReader, false, EOF, false))
+{
+  ret = eval(r,false);
+}
+</code></p>
+
+<p>Instead of calling <code>compile1</code> calling <code>eval</code>, which is our next entry point.</p>
+
+<h3>Eval Entry Point</h3>
+
+<p><code>eval</code> is the <code>e</code> in REPL, anything to be dynamically evaluated goes through the <code>eval</code> function.</p>
+
+<p>For instance if you type <code>(+ 1 1)</code> on your REPL that expression will be parsed, analyzed and evaluated starting on the <code>eval</code> function.</p>
+
+<p><div class='bogus-wrapper'><notextile><figure class='code'><figcaption><span>eval</span><a href='https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L6585'>Compiler.java  </a></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kd">public</span> <span class="kd">static</span> <span class="n">Object</span> <span class="nf">eval</span><span class="o">(</span><span class="n">Object</span> <span class="n">form</span><span class="o">,</span> <span class="kt">boolean</span> <span class="n">freshLoader</span><span class="o">)</span>
+</span></code></pre></td></tr></table></div></figure></notextile></div></p>
+
+<p>As you see eval receives a <code>form</code> by parameter, since knows nothing about files nor namespaces.</p>
+
+<p><code>eval</code> is just straightforward analyzing of the form, and there's not a emit here. This is the <em>simplified</em> version of the function:</p>
+
+<p><code>java
+form = macroexpand(form);
+Expr expr = analyze(C.EVAL, form);
+return expr.eval();
+</code></p>
+
+<h2>The reader</h2>
+
+<p>Languages with more complicated syntaxes separate the Lexer and Parser into two different pieces, like most Lisps, Clojure combines these two into just a <code>Reader</code>.</p>
+
+<p>The reader is pretty much self contained in <code>LispReader.java</code> and its main responsibility is given a stream, return the properly <em>tokenized</em> s-expressions.</p>
+
+<p>The reader dispatches reading to specialized functions and classes when a particular token is found, for instance <code>(</code> dispatches to <code>ListReader</code> class, digits dispatch to the <code>readNumber</code> function and so on.</p>
+
+<p>Much of the list and vector reading classes(<code>VectorReader</code>, <code>MapReader</code>, <code>ListReader</code>, etc) rely on the more generic <code>readDelimitedList</code> function which receives the particular list separator as parameter.</p>
+
+<p>```java Reader classes for each special character in LispReader</p>
+
+<pre><code>macros['"'] = new StringReader();
+macros[';'] = new CommentReader();
+macros['\''] = new WrappingReader(QUOTE);
+macros['@'] = new WrappingReader(DEREF);//new DerefReader();
+macros['^'] = new MetaReader();
+macros['`'] = new SyntaxQuoteReader();
+macros['~'] = new UnquoteReader();
+macros['('] = new ListReader();
+macros[')'] = new UnmatchedDelimiterReader();
+macros['['] = new VectorReader();
+macros[']'] = new UnmatchedDelimiterReader();
+macros['{'] = new MapReader();
+macros['}'] = new UnmatchedDelimiterReader();
+</code></pre>
+
+<p>//  macros['|'] = new ArgVectorReader();</p>
+
+<pre><code>macros['\\'] = new CharacterReader();
+macros['%'] = new ArgReader();
+macros['#'] = new DispatchReader();
+</code></pre>
+
+<p>```
+This is important because the reader is responsible for reading line and column number information, and establishing a relationship between tokens read and locations in the file.</p>
+
+<p>One of the main drawbacks of the reader used by the compiler is that much of the line and column number information is lost, that's one of the reasons <a href="blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">we saw in our earlier post</a> that for a 7 line function only one line was properly mapped, interestingly, the line corresponding to the outter s-expression.</p>
+
+<p>We will have to modify this reader if we want proper debugging information for our debugger.</p>
+
+<h2>The analyzer</h2>
+
+<p>The analyzer is the part of the compiler that translates your <code>s-expressions</code> into proper things to be emitted.</p>
+
+<p>We're already familiar with the REPL, in the <code>eval</code> function <code>analyze</code> and <code>emit</code> are combined in a single step, but internally there's a two step process.</p>
+
+<p>First, our parsed but meaningless code needs to be translated into meaningful expressions.</p>
+
+<p>In the case of the Clojure compiler all expressions implement the <code>Expr</code> interface:</p>
+
+<p>```java
+interface Expr{</p>
+
+<pre><code>Object eval() ;
+void emit(C context, ObjExpr objx, GeneratorAdapter gen);
+boolean hasJavaClass() ;
+Class getJavaClass() ;
+</code></pre>
+
+<p>}
+<code>``
+Much of the [Clojure special forms][24] are handled here,</code>IfExpr<code>,</code>LetExpr<code>,</code>LetFnExpr<code>,</code>RecurExpr<code>,</code>FnExpr<code>,</code>DefExpr<code>,</code>CaseExpr`, you get the idea.</p>
+
+<p>Those are nested classes inside the Compiler class, and for you visualize how many of those special cases exist inside the compiler, I took this picture for you:</p>
+
+<p><img class="center" src="/images/blog/analyze-expr.png" width="380" height="280" title="Analyzer" alt="Analyzer"></p>
+
+<p>As you would expect for a properly modularized piece of software, each expression knows how to parse itself, eval itself, and emit itself.</p>
+
+<p>The analyze function is a switch on the type of the form to be analyzed, just for you to get a taste:</p>
+
+<p>```java
+private static Expr analyze(C context, Object form, String name) {</p>
+
+<p>...</p>
+
+<p>if(fclass == Symbol.class)</p>
+
+<pre><code>return analyzeSymbol((Symbol) form);
+</code></pre>
+
+<p>else if(fclass == Keyword.class)</p>
+
+<pre><code>return registerKeyword((Keyword) form);
+</code></pre>
+
+<p>else if(form instanceof Number)</p>
+
+<pre><code>return NumberExpr.parse((Number) form);
+</code></pre>
+
+<p>else if(fclass == String.class)</p>
+
+<pre><code>return new StringExpr(((String) form).intern());
+</code></pre>
+
+<p>...
+```</p>
+
+<p>And there's special handling for the special forms which are keyed by Symbol on the same file.</p>
+
+<p>```java
+IPersistentMap specials = PersistentHashMap.create(</p>
+
+<pre><code>    DEF, new DefExpr.Parser(),
+    LOOP, new LetExpr.Parser(),
+    RECUR, new RecurExpr.Parser(),
+    IF, new IfExpr.Parser(),
+    CASE, new CaseExpr.Parser(),
+    LET, new LetExpr.Parser(),
+    LETFN, new LetFnExpr.Parser(),
+    DO, new BodyExpr.Parser(),
+    FN, null,
+    QUOTE, new ConstantExpr.Parser(),
+    THE_VAR, new TheVarExpr.Parser(),
+    IMPORT, new ImportExpr.Parser(),
+    DOT, new HostExpr.Parser(),
+    ASSIGN, new AssignExpr.Parser(),
+    DEFTYPE, new NewInstanceExpr.DeftypeParser(),
+    REIFY, new NewInstanceExpr.ReifyParser(),
+</code></pre>
+
+<p>```</p>
+
+<p>Analyze <em>will</em> return a parsed <code>Expr</code>, which is now a part of your program represented in the internal data structures of the compiler.</p>
+
+<h2>The bytecode generator</h2>
+
+<p>As said before it uses <a href="http://asm.ow2.org/">ASM</a> so we found the standard code stacking up visitors, annotations, methods, fields, etc.</p>
+
+<p>I won't enter here into specific details about ASM API since it's properly documented somewhere else.</p>
+
+<p>Only notice that no matter if code is eval'ed or not, JVM bytecode <em>will</em> be generated.</p>
+
+<h2>What's next</h2>
+
+<p>One of the reasons I ended up here when I started working on the debugger was to see if by any means, I could <em>add</em> better line number references to the
+current Clojure compiler.</p>
+
+<p>As said before and as we saw here, the Java Clojure Compiler is not exactly built for extensibility.</p>
+
+<p>The option I had left, was to modify the line numbers and other debugging information at runtime, and that's what I will show you on the next post.</p>
+
+<p>I will properly synchronize Clojure source code with JVM Bytecode, meaning I will synchronize code trees, that way I will not only add proper line references, but I will know
+which bytecode corresponds with which <code>s-expression</code> in your source.</p>
+
+<p>Doing Clojure I usually end up with lines of code looking like this:</p>
+
+<p><code>clojure
+(map (comp first rest (partial filter identity)) (split-line line separator))
+</code></p>
+
+<p>What use do I have for a <em>line base debugger</em> with that code??</p>
+
+<p>I want an <strong>s-expression based debugger</strong>, don't you?</p>
+
+<p>One more reason we have to envy <a href="http://racket-lang.org/">Dr Racket</a>, whose debugger already knows about them.</p>
+
+<p><img class="center" src="/images/blog/racket-debug.png" width="580" height="480" title="Racket Debugger" alt="Racket Debugger"></p>
+
+<p>Stay tuned to see it working on the JVM.</p>
+
+<p>Meanwhile, <a href="http://www.twitter.com/guilespi">I'm guilespi</a> on Twitter.</p>
+]]></content>
+  </entry>
+  
+</feed>

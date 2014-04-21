@@ -1,0 +1,704 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Decompiling Clojure I - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="This is the first in a series of articles about decompiling Clojure, that is, going from JVM bytecode created by the Clojure compiler, to some kind &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2014/04/13/decompiling-clojure-i/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">Decompiling Clojure I</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-04-13T17:19:00-03:00" pubdate data-updated="true">Apr 13<span>th</span>, 2014</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>This is the first in a series of articles about decompiling Clojure, that is, going from JVM bytecode created by the Clojure compiler, to some kind of higher level language, not necessarily Clojure.</p>
+
+<p>This article was written in the scope of a larger project, building a better Clojure debugger, which I&#8217;ll probably blog about in the future.</p>
+
+<p>These articles are going to build form the ground up, so you may skip forward if you find some of the stuff obvious.</p>
+
+<h1>Clojure targets the JVM</h1>
+
+<p>To be more precise, there is a <a href="https://github.com/clojure/clojure">Clojure compiler targeting the JVM</a>, there&#8217;s also one <a href="https://github.com/clojure/clojurescript">targeting Javascript</a>, one for <a href="https://github.com/richhickey/clojure-clr">the CLR</a> and there are some less known projects <a href="https://github.com/raph-amiard/clojurescript-lua">targeting lua</a> or <a href="https://github.com/schani/clojurec">even C</a>.</p>
+
+<p>But the official <a href="http://clojure.com/">clojure core</a> efforts are mainly on the JVM, which stands for <em>Java Virtual Machine</em>.</p>
+
+<p>That means when you write some clojure code:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">ns </span><span class="nv">hello-world</span><span class="p">)</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nb">println </span><span class="s">&quot;Hello World&quot;</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>You won&#8217;t get a native binary, for instance a x86 <a href="http://msdn.microsoft.com/en-us/magazine/cc301805.aspx">PE</a> or <a href="http://www.skyfree.org/linux/references/ELF_Format.pdf">ELF</a> file, although it&#8217;s entirely possible to write a compiler to do it.</p>
+
+<p>When you target a particular runtime though, you usually get a different set of functions to interact with the host, there&#8217;s a lot of language primitives just to deal with <a href="http://clojure.org/java_interop">Java inter operation</a> which do not
+migrate easily to other runtimes or virtual machines.</p>
+
+<h1>The JVM is about Java, or is it?</h1>
+
+<p>This doesn&#8217;t mean that the JVM can <em>only</em> run programs written in Java.</p>
+
+<p>In fact, Clojure doesn&#8217;t use Java as an intermediate language before compiling, the Clojure compiler for the JVM generates <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html">JVM bytecode</a> directly <a href="http://asm.ow2.org/">using the ASM library</a>.</p>
+
+<p>So, what does it mean the JVM is about Java if you can compile directly to bytecode without a mandatory visit to <a href="http://steve-yegge.blogspot.com/2006/03/execution-in-kingdom-of-nouns.html">the kingdom of nouns</a>?</p>
+
+<p>Besides its name, the JVM was designed by James Gosling in 1992 to support the <a href="http://docs.oracle.com/javase/specs/jvms/se5.0/html/Preface.doc.html">Oak Programming Language</a>, before evolving into its current form.</p>
+
+<p>Its main responsibility is to achieve independence from hardware and operating system, and like a real machine, it has an instruction set and manipulates memory at runtime, and the truth is the JVM knows nothing about the Java Programming Language, it only knows of a particularly binary format, <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html">the class file format</a>, which contains bytecode and other information.</p>
+
+<p>So, any programming language with features that can be expressed in terms of a valid class file, can by hosted on the JVM.</p>
+
+<p>But the truth is that the class file format, maintains a lot of resemblance with concepts appearing in Java, or any other OO programming language as a matter of fact, to name a few:</p>
+
+<ul>
+<li>A <code>class</code> file corresponds to a Class</li>
+<li>A <code>class</code> file has members</li>
+<li>A <code>class</code> file has methods</li>
+<li>Methods of the <code>class</code> file can be static or instance methods</li>
+<li>There are primitive types and reference types, that can be stored in variables</li>
+<li>Exceptions are an instance or subclass of <code>Throwable</code></li>
+<li>etc</li>
+</ul>
+
+
+<p>So, we can say the JVM is <strong>not</strong> agnostic regarding the concepts supported by the language, as <a href="http://en.wikipedia.org/wiki/Lisp_Machines">the LISP machines</a> were not agnostic either.</p>
+
+<h1>Clojure compiles to bytecode</h1>
+
+<p>So we have a language like Clojure, with many concepts not easily mapped to the JVM spec, but that it was mapped none the less, how?</p>
+
+<h2>Namespaces do not exist</h2>
+
+<p>Maybe you think Clojure namespaces correspond to a <strong>class</strong>, and each method in the namespace is mapped to a method in the class.</p>
+
+<p>Well, that is not the case.</p>
+
+<p>Namespaces <a href="http://www.infoq.com/presentations/What-Sucks-about-Clojure-and-Why-You-ll-Love-It-Anyway">were criticized before</a> for being tough, and the truth is they&#8217;re used for proper modularity,
+but do not map to an entity in the JVM. They&#8217;re equivalent to java packages or modules in other languages.</p>
+
+<h2>Each function is a class</h2>
+
+<p>Each function in your namespace will get compiled to a complete different class. That&#8217;s something you can easily confirm listing the files under <code>target/classes</code> in a leiningen project directory.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">git</span><span class="err">:</span><span class="p">(</span><span class="nf">master</span><span class="p">)</span> <span class="err">✗</span> <span class="nv">ls</span> <span class="nv">target/classes/</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">config$fn__292.class</span>
+</span><span class='line'><span class="nv">routes__init.class</span>
+</span><span class='line'><span class="nv">config$loading__4910__auto__.class</span>
+</span><span class='line'><span class="nv">config$read_environment$fn__300.class</span>
+</span><span class='line'><span class="nv">config$read_environment.class</span>
+</span><span class='line'><span class="nv">config$read_properties$iter__304__308$fn__309$fn__310.class</span>
+</span><span class='line'><span class="nv">server</span>
+</span><span class='line'><span class="nv">server$_main.class</span>
+</span><span class='line'><span class="nv">server$_main$fn__4006.class</span>
+</span><span class='line'><span class="nv">server$fn__3939.class</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>You will find a <code>.class</code> file for each function you have defined, <code>namespace$function.class</code> being the standard syntax.</p>
+
+<h2>Each anonymous function is also a class</h2>
+
+<p>As you saw in the previous listing, there are many functions with numbers like <code>config$fn__292.class</code>.</p>
+
+<p>Those correspond to anonymous functions that get their own class when compiled, so if you have this code:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nb">+ </span><span class="mi">34</span> <span class="nv">%</span><span class="p">)</span> <span class="p">(</span><span class="nb">range </span><span class="mi">10</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>You should expect a <code>.class</code> file for the anonymous function <code>#(+ 34 %)</code>.</p>
+
+<h2><em>class</em> files don&#8217;t need to be on disk</h2>
+
+<p>Many times you&#8217;ll find the <code>class</code> files on disk, but it doesn&#8217;t have to be that way.</p>
+
+<p>In many circumstances we&#8217;re going to be modifying the <code>class</code> structure on runtime, or creating new <code>class</code> structures to be run, entirely on memory. Even the compiler can <code>eval</code> some code
+compiling to memory without creating a <code>class</code> file on disk.</p>
+
+<h1>What does bytecode look like?</h1>
+
+<p>For the first example, I selected a real simple clojure function</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">test-multi-let</span>
+</span><span class='line'>  <span class="p">[]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">a</span> <span class="mi">1</span>
+</span><span class='line'>        <span class="nv">b</span> <span class="mi">2</span>
+</span><span class='line'>        <span class="nv">c</span> <span class="mi">3</span>
+</span><span class='line'>        <span class="nv">b</span> <span class="mi">4</span><span class="p">]</span>
+</span><span class='line'>    <span class="mi">9</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>To explore the bytecode we will use <code>javap</code>, simple, but does the job:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">javap</span> <span class="nv">-c</span> <span class="nv">target/classes/debugee/test</span><span class="sc">\$</span><span class="nv">test_multi_let.class</span>
+</span><span class='line'><span class="nv">...</span>
+</span><span class='line'><span class="nv">public</span> <span class="nv">static</span> <span class="p">{}</span><span class="c1">;</span>
+</span><span class='line'>    <span class="nv">Code</span><span class="err">:</span>
+</span><span class='line'>       <span class="mi">0</span><span class="err">:</span> <span class="nv">lconst_1</span>
+</span><span class='line'>       <span class="mi">1</span><span class="err">:</span> <span class="nv">invokestatic</span>  <span class="o">#</span><span class="mi">19</span>                 <span class="nv">//</span> <span class="nv">Method</span> <span class="nv">java/lang/Long.valueOf</span><span class="err">:</span><span class="p">(</span><span class="nf">J</span><span class="p">)</span><span class="nv">Ljava/lang/Long</span><span class="c1">;</span>
+</span><span class='line'>       <span class="mi">4</span><span class="err">:</span> <span class="nv">putstatic</span>     <span class="o">#</span><span class="mi">21</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__0</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>       <span class="mi">7</span><span class="err">:</span> <span class="nv">ldc2_w</span>        <span class="o">#</span><span class="mi">22</span>                 <span class="nv">//</span> <span class="nb">long </span><span class="mi">2</span><span class="nv">l</span>
+</span><span class='line'>      <span class="mi">10</span><span class="err">:</span> <span class="nv">invokestatic</span>  <span class="o">#</span><span class="mi">19</span>                 <span class="nv">//</span> <span class="nv">Method</span> <span class="nv">java/lang/Long.valueOf</span><span class="err">:</span><span class="p">(</span><span class="nf">J</span><span class="p">)</span><span class="nv">Ljava/lang/Long</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">13</span><span class="err">:</span> <span class="nv">putstatic</span>     <span class="o">#</span><span class="mi">25</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__1</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">16</span><span class="err">:</span> <span class="nv">ldc2_w</span>        <span class="o">#</span><span class="mi">26</span>                 <span class="nv">//</span> <span class="nb">long </span><span class="mi">3</span><span class="nv">l</span>
+</span><span class='line'>      <span class="mi">19</span><span class="err">:</span> <span class="nv">invokestatic</span>  <span class="o">#</span><span class="mi">19</span>                 <span class="nv">//</span> <span class="nv">Method</span> <span class="nv">java/lang/Long.valueOf</span><span class="err">:</span><span class="p">(</span><span class="nf">J</span><span class="p">)</span><span class="nv">Ljava/lang/Long</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">22</span><span class="err">:</span> <span class="nv">putstatic</span>     <span class="o">#</span><span class="mi">29</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__2</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">25</span><span class="err">:</span> <span class="nv">ldc2_w</span>        <span class="o">#</span><span class="mi">30</span>                 <span class="nv">//</span> <span class="nb">long </span><span class="mi">4</span><span class="nv">l</span>
+</span><span class='line'>      <span class="mi">28</span><span class="err">:</span> <span class="nv">invokestatic</span>  <span class="o">#</span><span class="mi">19</span>                 <span class="nv">//</span> <span class="nv">Method</span> <span class="nv">java/lang/Long.valueOf</span><span class="err">:</span><span class="p">(</span><span class="nf">J</span><span class="p">)</span><span class="nv">Ljava/lang/Long</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">31</span><span class="err">:</span> <span class="nv">putstatic</span>     <span class="o">#</span><span class="mi">33</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__3</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">34</span><span class="err">:</span> <span class="nv">ldc2_w</span>        <span class="o">#</span><span class="mi">34</span>                 <span class="nv">//</span> <span class="nb">long </span><span class="mi">9</span><span class="nv">l</span>
+</span><span class='line'>      <span class="mi">37</span><span class="err">:</span> <span class="nv">invokestatic</span>  <span class="o">#</span><span class="mi">19</span>                 <span class="nv">//</span> <span class="nv">Method</span> <span class="nv">java/lang/Long.valueOf</span><span class="err">:</span><span class="p">(</span><span class="nf">J</span><span class="p">)</span><span class="nv">Ljava/lang/Long</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">40</span><span class="err">:</span> <span class="nv">putstatic</span>     <span class="o">#</span><span class="mi">37</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__4</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">43</span><span class="err">:</span> <span class="nv">return</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I&#8217;ve removed some extra information such as variable tables, we&#8217;re going to be visiting those later.</p>
+
+<p>What you see here are JVM <em>assembly instructions</em>, just a subset of the JVM instruction set, generated by the Clojure compiler when feed with the sample function above.</p>
+
+<p>Before we get into more details, let me show you how that code looks after a basic decompiler pass:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="mi">0</span><span class="ss">:a</span> <span class="nb">= </span><span class="mi">1</span>
+</span><span class='line'><span class="mi">2</span><span class="ss">:b</span> <span class="nb">= </span><span class="mi">2</span>
+</span><span class='line'><span class="mi">6</span><span class="ss">:c</span> <span class="nb">= </span><span class="mi">3</span>
+</span><span class='line'><span class="mi">11</span><span class="ss">:b</span> <span class="nb">= </span><span class="mi">4</span>
+</span><span class='line'><span class="mi">16</span><span class="ss">:RETURN</span> <span class="mi">9</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Prettier uh?</p>
+
+<p>That is until you decompile this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">test-if</span>
+</span><span class='line'>  <span class="p">[]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">= </span><span class="p">(</span><span class="nb">inc </span><span class="mi">1</span><span class="p">)</span> <span class="mi">2</span><span class="p">)</span>
+</span><span class='line'>    <span class="mi">8</span>
+</span><span class='line'>    <span class="mi">9</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>And get this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="mi">0</span><span class="ss">:IF</span> <span class="p">(</span><span class="mi">2</span> <span class="nv">!=</span> <span class="nv">clojure.lang.Numbers.inc</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="nv">GOTO</span> <span class="mi">11</span> <span class="nv">ELSE</span> <span class="nv">GOTO</span> <span class="mi">18</span>
+</span><span class='line'><span class="mi">11</span><span class="ss">:RETURN</span> <span class="mi">9</span>
+</span><span class='line'><span class="mi">18</span><span class="ss">:RETURN</span> <span class="mi">8</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Who was the moron that put a <a href="http://groups.engin.umd.umich.edu/CIS/course.des/cis400/basic/basic.html"><strong>BASIC</strong></a> in my Clojure!</p>
+
+<p>Ain&#8217;t it?</p>
+
+<p>Keep reading&#8230; there&#8217;s more to be seen ahead.</p>
+
+<h1>The operand stack</h1>
+
+<p>I won&#8217;t dwell into many details about each JVM instruction and how that translates to something resembling Clojure, or Basic for that matter, but there&#8217;s one thing worth of mention, and that is the operand stack.</p>
+
+<h2>Frames</h2>
+
+<p>A new Frame is created each time a method is invoked and destroyed when the method completes, whether that information is normal or abrupt (throws an uncaught exception), frames are allocated in the JVM stack and have its own array of local variables and its own operand stack.</p>
+
+<p>If you set a breakpoint on your code, each different entry in your thread callstack, is a frame.</p>
+
+<h2>Stack</h2>
+
+<p>The operand stack is a last-in-first-out (LIFO) stack and its empty when the Frame that contains it is created, and the JVM provides instructions for loading constants or variables into the operand stack, and to put values from the operand stack in variables.</p>
+
+<p>The operand stack is usually used to prepare parameters to be passed to methods and to receive method results, <a href="http://markfaction.wordpress.com/2012/07/15/stack-based-vs-register-based-virtual-machine-architecture-and-the-dalvik-vm/">as opposed to using registers to do it</a>.</p>
+
+<p>So you should expect something along these lines:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">f</span><span class="p">(</span><span class="nf">a</span>, <span class="nv">b</span>, <span class="nv">c</span><span class="p">)</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="nv">compiling</span> <span class="nv">to</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">push</span> <span class="nv">a</span>
+</span><span class='line'><span class="nv">push</span> <span class="nv">b</span>
+</span><span class='line'><span class="nv">push</span> <span class="nv">c</span>
+</span><span class='line'><span class="nv">call</span> <span class="nv">f</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>So looking again at the bytecode of the previous function:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">test-if</span>
+</span><span class='line'>  <span class="p">[]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">= </span><span class="p">(</span><span class="nb">inc </span><span class="mi">1</span><span class="p">)</span> <span class="mi">2</span><span class="p">)</span>
+</span><span class='line'>    <span class="mi">8</span>
+</span><span class='line'>    <span class="mi">9</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Here:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">public</span> <span class="nv">java.lang.Object</span> <span class="nv">invoke</span><span class="p">()</span><span class="c1">;</span>
+</span><span class='line'>    <span class="nv">Code</span><span class="err">:</span>
+</span><span class='line'>       <span class="mi">0</span><span class="err">:</span> <span class="nv">lconst_1</span>
+</span><span class='line'>       <span class="mi">1</span><span class="err">:</span> <span class="nv">invokestatic</span>  <span class="o">#</span><span class="mi">63</span>                 <span class="nv">//</span> <span class="nv">Method</span> <span class="nv">clojure/lang/Numbers.inc</span><span class="err">:</span><span class="p">(</span><span class="nf">J</span><span class="p">)</span><span class="nv">J</span>
+</span><span class='line'>       <span class="mi">4</span><span class="err">:</span> <span class="nv">ldc2_w</span>        <span class="o">#</span><span class="mi">42</span>                 <span class="nv">//</span> <span class="nb">long </span><span class="mi">2</span><span class="nv">l</span>
+</span><span class='line'>       <span class="mi">7</span><span class="err">:</span> <span class="nv">lcmp</span>
+</span><span class='line'>       <span class="mi">8</span><span class="err">:</span> <span class="nv">ifne</span>          <span class="mi">18</span>
+</span><span class='line'>      <span class="mi">11</span><span class="err">:</span> <span class="nv">getstatic</span>     <span class="o">#</span><span class="mi">49</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__4</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">14</span><span class="err">:</span> <span class="nv">goto</span>          <span class="mi">21</span>
+</span><span class='line'>      <span class="mi">17</span><span class="err">:</span> <span class="nv">pop</span>
+</span><span class='line'>      <span class="mi">18</span><span class="err">:</span> <span class="nv">getstatic</span>     <span class="o">#</span><span class="mi">53</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__5</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">21</span><span class="err">:</span> <span class="nv">areturn</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We can make ourselves an interpretation about what&#8217;s going on&#8230;</p>
+
+<p><code>lconst_1</code> is pushing the constant value <code>1</code> into the stack, then calling a static method with <code>invokestatic</code>, as you&#8217;ve already guessed that&#8217;s the <code>clojure.lang.Numbers.inc(1)</code> we saw on the <em>basic</em> decompiler earlier.</p>
+
+<p>Then <code>ld2_w</code> loads the value <code>2</code> into the stack and <code>lcmp</code> will compare it against the function result, <code>ifne</code> tests for non equality and jumps to line <code>18</code> if values differ.</p>
+
+<p>One thing to consider here is that each entry on the operand stack can hold a value of any JVM type, and those must be operated in ways appropriate to their types, so many operations have a different operation code according to the type they&#8217;re handling.</p>
+
+<p>So looking at this example from the JVM specification, we see the operations are prefixed with a <code>d</code> since they operate on <code>double</code> values.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">Method</span> <span class="nb">double </span><span class="nv">doubleLocals</span><span class="p">(</span><span class="nf">double</span>,<span class="nv">double</span><span class="p">)</span>
+</span><span class='line'><span class="mi">0</span> <span class="nv">dload_1</span> <span class="nv">//</span> <span class="nv">First</span> <span class="nv">argument</span> <span class="nv">in</span> <span class="nv">local</span> <span class="nv">variables</span> <span class="mi">1</span> <span class="nb">and </span><span class="mi">2</span>
+</span><span class='line'><span class="mi">1</span> <span class="nv">dload_3</span> <span class="nv">//</span> <span class="nv">Second</span> <span class="nv">argument</span> <span class="nv">in</span> <span class="nv">local</span> <span class="nv">variables</span> <span class="mi">3</span> <span class="nb">and </span><span class="mi">4</span>
+</span><span class='line'><span class="mi">2</span> <span class="nv">dadd</span>
+</span><span class='line'><span class="mi">3</span> <span class="nv">dreturn</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Which as you may have guessed, is adding double values <code>1</code> and <code>3</code>.</p>
+
+<h1>JVM auxiliary information</h1>
+
+<p>The JVM <code>class</code> format has support for some extra information that can be used for debugging purposes, some of which you can get rid from your files if you want.</p>
+
+<p>Among those we find <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.7.12">the LineNumberTable attribute</a> and the <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.7.13">the LocalVariableTable attribute</a>, which may be used by debuggers to determine the value of a given local variable during the execution of a method.</p>
+
+<p>According to the jvm spec, the table has the following structure inside the <code>class</code> file format</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">LocalVariableTable_attribute</span> <span class="p">{</span>
+</span><span class='line'>       <span class="nv">u2</span> <span class="nv">attribute_name_index</span><span class="c1">;</span>
+</span><span class='line'>       <span class="nv">u4</span> <span class="nv">attribute_length</span><span class="c1">;</span>
+</span><span class='line'>       <span class="nv">u2</span> <span class="nv">local_variable_table_length</span><span class="c1">;</span>
+</span><span class='line'>       <span class="p">{</span>   <span class="nv">u2</span> <span class="nv">start_pc</span><span class="c1">;</span>
+</span><span class='line'>           <span class="nv">u2</span> <span class="nv">length</span><span class="c1">;</span>
+</span><span class='line'>           <span class="nv">u2</span> <span class="nv">name_index</span><span class="c1">;</span>
+</span><span class='line'>           <span class="nv">u2</span> <span class="nv">descriptor_index</span><span class="c1">;</span>
+</span><span class='line'>           <span class="nv">u2</span> <span class="nv">index</span><span class="c1">;</span>
+</span><span class='line'>       <span class="p">}</span> <span class="nv">local_variable_table</span><span class="p">[</span><span class="nv">local_variable_table_length</span><span class="p">]</span><span class="c1">;</span>
+</span><span class='line'>   <span class="p">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Basically it says which variable starts at which instruction: <code>start_pc</code> and lasts for how long: <code>length</code>.</p>
+
+<p>If we look at that table for our <code>let</code> example:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">test-multi-let</span>
+</span><span class='line'>  <span class="p">[]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">a</span> <span class="mi">1</span>
+</span><span class='line'>        <span class="nv">b</span> <span class="mi">2</span>
+</span><span class='line'>        <span class="nv">c</span> <span class="mi">3</span>
+</span><span class='line'>        <span class="nv">b</span> <span class="mi">4</span><span class="p">]</span>
+</span><span class='line'>    <span class="mi">9</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We see how each variable is referenced against program counter(<code>pc</code>) line numbers (do not get confused with source file line numbers).</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">LocalVariableTable</span><span class="err">:</span>
+</span><span class='line'>      <span class="nv">Start</span>  <span class="nv">Length</span>  <span class="nv">Slot</span>  <span class="nv">Name</span>   <span class="nv">Signature</span>
+</span><span class='line'>             <span class="mi">2</span>      <span class="mi">17</span>     <span class="mi">1</span>     <span class="nv">a</span>   <span class="nv">J</span>
+</span><span class='line'>             <span class="mi">6</span>      <span class="mi">13</span>     <span class="mi">3</span>     <span class="nv">b</span>   <span class="nv">J</span>
+</span><span class='line'>            <span class="mi">11</span>       <span class="mi">8</span>     <span class="mi">5</span>     <span class="nv">c</span>   <span class="nv">J</span>
+</span><span class='line'>            <span class="mi">16</span>       <span class="mi">3</span>     <span class="mi">7</span>     <span class="nv">b</span>   <span class="nv">J</span>
+</span><span class='line'>             <span class="mi">0</span>      <span class="mi">19</span>     <span class="mi">0</span>  <span class="nv">this</span>   <span class="nv">Ljava/lang/Object</span><span class="c1">;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>One interesting thing though, is the <code>LineNumberTable</code></p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'>  <span class="nv">public</span> <span class="nv">debugee.test$test_multi_let</span><span class="p">()</span><span class="c1">;</span>
+</span><span class='line'>    <span class="nv">LineNumberTable</span><span class="err">:</span>
+</span><span class='line'>      <span class="nv">line</span> <span class="mi">204</span><span class="err">:</span> <span class="mi">0</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Which has only <strong>one</strong> line number reference, even if our function was 7 lines long, obviously that cannot be good for a debugger expecting to step over each line!</p>
+
+<p>Next post I&#8217;ll blog about the Clojure compiler and how it ends up creating that bytecode, before visiting again the decompiling process.</p>
+
+<p>I&#8217;m <a href="http://www.twitter.com/guilespi">guilespi</a> on Twitter, get in touch!</p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-04-13T17:19:00-03:00" pubdate data-updated="true">Apr 13<span>th</span>, 2014</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/jvm/'>JVM</a>, <a class='category' href='/blog/categories/clojure/'>clojure</a>, <a class='category' href='/blog/categories/compilers/'>compilers</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2014/04/13/decompiling-clojure-i/" data-via="" data-counturl="http://guilespi.github.com/blog/2014/04/13/decompiling-clojure-i/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2013/12/01/whats-so-great-about-reducers/" title="Previous Post: What's so great about Reducers?">&laquo; What's so great about Reducers?</a>
+      
+      
+        <a class="basic-alignment right articlenav" href="/blog/2014/04/21/decompiling-clojure-ii/" title="Next Post: Decompiling Clojure II, The Compiler">Decompiling Clojure II, The Compiler &raquo;</a>
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What's so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen's club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2014/04/13/decompiling-clojure-i/';
+        var disqus_url = 'http://guilespi.github.com/blog/2014/04/13/decompiling-clojure-i/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

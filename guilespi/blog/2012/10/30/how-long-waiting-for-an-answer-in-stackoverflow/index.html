@@ -1,0 +1,343 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>How long waiting for an answer in StackOverflow - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="I&#8217;m not a StackOverflow active contributor, something I recently decided should start to change. I think it&#8217;s amazing the speed an answer &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">How Long Waiting for an Answer in StackOverflow</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-30T23:52:00-02:00" pubdate data-updated="true">Oct 30<span>th</span>, 2012</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>I&#8217;m not a <a href="http://www.stackoverflow.com">StackOverflow</a> active contributor, something I recently decided should start to change.</p>
+
+<p>I think it&#8217;s amazing the <code>speed</code> an answer is given for any asked question, like <em>freaking</em> fast. If you are using Google Reader to peek new questions filtered by tag, when you see a question, almost for sure it&#8217;s already answered.</p>
+
+<p>Fortunately all StackExchange data is <a href="http://media10.simplex.tv/content/xtendx/stu/stackoverflow/">open</a>, so we can see exactly <em>how</em> fast is that. I used the online <a href="http://data.stackexchange.com/faq">data browser</a>, more than enough for the task.</p>
+
+<p>I decided to consider only the questions having an accepted answer, since questions with many bogus answers should not be treated as having an answer at all.</p>
+
+<p><strong>tl;dr</strong></p>
+
+<p>The average answer time seems to be dependent on a mix of the maturity of the language and how many people is using it.</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguage5.png" width="550" height="650" title="'How long waiting for an answer by language, easy questions'" ></p>
+
+<p>Hey, Haskell has pretty good answer times, at least considering its <a href="http://www.tiobe.com/index.php/content/paperinfo/tpci/index.html">33th</a> position in the <a href="http://en.wikipedia.org/wiki/TIOBE_index">TIOBE Index</a>.</p>
+
+<p><strong>Not all questions are the same</strong></p>
+
+<p>Of course not all questions are the same, this is from the first query I ran.</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguageunfiltered.png" width="550" height="650" title="'How long waiting for an answer by language, all questions'" ></p>
+
+<p>This is an unfiltered query using all the questions from year 2012, you see the average answer time is much higher than the previous chart, around 1000 minutes, looking at the data:</p>
+
+<pre><code>Language    Ans. Time         Stdev
+c               934       7630.98957971267
+c++            1036       7258.13498426685
+clojure        1078       7485.94721484444
+haskell        1199       9059.91937846459
+php            1210       8588.58929278208
+lua            1386       6569.08356022594
+c#             1452       8875.00837073432
+scala          1472      10707.9191188056
+javascript     1490       9756.64151519177
+java           1755      10541.6111024572
+ruby           2124      11850.4353701107
+</code></pre>
+
+<p>The standard deviation is huge, we have a lot of questions that took ages to get answered, making the average answer time meaningless.</p>
+
+<p>So I decided to take out questions with an answer time greater than 24 hours, as 92% of the questions have an approved answer in less than 5 hours.
+(<a href="https://gist.github.com/3984320">here</a> you can see the query used to get this table)</p>
+
+<pre><code>DifficultyGroup    Total     Average              StandardDev
+Easy                47099        27           44.7263057563449 
+Medium                344       691          339.312936469053
+Hard                 1926      3769         2004.75027395979
+Hell                 1623     66865        96822.8840748525
+</code></pre>
+
+<p>It started to look like something:</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguage24.png" width="550" height="650" title="'How long waiting for an answer by language, less than 24 hours'" >
+<a href="https://gist.github.com/3984333">This</a> is the query.</p>
+
+<p>You see there, PHP running at front with 68 minutes average accepted answer time, either it&#8217;s too easy or there&#8217;re too many of them.</p>
+
+<p>If you wanna see how the distribution goes when considering accepted answers in less than 5 hours, is the first picture of the page, the trend is also there.</p>
+
+<p><strong>What about the time?</strong></p>
+
+<p>Something unexpected, average answer time is almost unaffected by the time of the day the question was asked.
+The only thing I see here is that Ruby programmers are being killed by the lunch break and c++ programmers slowly fade out with the day, ain&#8217;t it?</p>
+
+<p><img class="center" src="/images/blog/averageanswerhourbyhour.png" width="550" height="650" title="'How long waiting for an answer by time of day, ruby and c++'" ></p>
+
+<p><a href="https://gist.github.com/3984329">This</a> is the query.</p>
+
+<p>There goes my idea of catching unanswered questions at night. It would be interesting to see how many cross-timezone answering is happening.</p>
+
+<p><strong>Conclusion</strong></p>
+
+<p>It should work better running a regression against the complete dataset using more features than only programming language and time of day
+ to automatically guess which questions have more chance of have a long life unanswered. Maybe next time.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">Twitter</a></em></p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-30T23:52:00-02:00" pubdate data-updated="true">Oct 30<span>th</span>, 2012</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/programming-languages/'>programming languages</a>, <a class='category' href='/blog/categories/stackoverflow/'>stackoverflow</a>, <a class='category' href='/blog/categories/statistics/'>statistics</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/" data-via="" data-counturl="http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/" title="Previous Post: Computational Investment QSTK Framework from Python to Clojure">&laquo; Computational Investment QSTK Framework from Python to Clojure</a>
+      
+      
+        <a class="basic-alignment right articlenav" href="/blog/2012/11/07/on-firing-yourself/" title="Next Post: On firing yourself">On firing yourself &raquo;</a>
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What's so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen's club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/';
+        var disqus_url = 'http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

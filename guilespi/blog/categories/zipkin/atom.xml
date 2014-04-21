@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: zipkin | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/zipkin/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2014-04-21T19:02:31-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Zipkin distributed tracing using Clojure]]></title>
+    <link href="http://guilespi.github.com/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/"/>
+    <updated>2013-11-28T13:05:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2013/11/28/zipkin-distributed-tracing-using-clojure</id>
+    <content type="html"><![CDATA[<p>When you have a system with many moving parts it's usually difficult trying to understand which one of those pieces is the culprit,
+say for instance your home page is taking 3 seconds to render and you're losing customers, what the hell is going on?</p>
+
+<p>Whether you're using Memcache, Redis, RabbitMQ or a custom distributed service, if you're trying to scale your shit up, you probably have many pieces or boxes involved.</p>
+
+<p>At least that's what happens <a href="http://highscalability.com/blog/2013/7/8/the-architecture-twitter-uses-to-deal-with-150m-active-users.html">at Twitter</a>, so they've come up with <a href="http://twitter.github.io/zipkin/">a solution called Zipkin</a> to trace distributed operations,
+that is, an operation that is potentially solved using many different nodes.</p>
+
+<p><em>Twitter Architecture</em>
+<img class="center" src="/images/blog/twitter_arch.png" width="680" height="780" title="'Twitter Architecture'" ></p>
+
+<p>Having dealt with distributed logging in the past, reconstructing a distributed operation from logs,
+it's like trying to build a giant jigsaw puzzle in the middle of a Tornado.</p>
+
+<p>The standard strategy is to propagate some <code>operation id</code> and use it anywhere you want
+to track what happened, and that is the essence of what Zipkin does, but in a structured kind of way.</p>
+
+<h1>Zipkin</h1>
+
+<p>Zipkin was modelled after <a href="http://research.google.com/pubs/pub36356.html">Google Dapper</a> paper on distributed tracing and basically gives you two things:</p>
+
+<ul>
+<li>Trace Collection</li>
+<li>Trace Querying</li>
+</ul>
+
+
+<p><em>Zipkin Architecture</em>
+<img class="center" src="/images/blog/zipkin_arch.png" width="680" height="780" title="'Zipkin Architecture'" ></p>
+
+<p>The architecture looks complex but it ain't that much, since you can avoid using <code>Scribe</code>, <code>Cassandra</code>, <code>Zookeeper</code>
+and pretty much everything related to scaling the tracing platform itself.</p>
+
+<p>Since the trace collector <em>speaks</em> the Scribe protocol you can trace directly to the collector, and you can also use
+local disk storage for tracing and avoid a distributed database like Cassandra, it's an easy way
+to get your feet wet without having to setup a cluster to peek a few traces.</p>
+
+<h1>Tracing</h1>
+
+<p>There are a couple entities involved in Zipkin tracing which you should know before moving forward:</p>
+
+<p><strong>Trace</strong></p>
+
+<p>A trace is a particular operation which may occur in many different nodes and be composed on many different Spans.</p>
+
+<p><strong>Span</strong></p>
+
+<p>A span represents a sub-operation for the Trace, it can be a different service or a different stage in the operation process.
+Also, spans have a hierarchy, so a span can be a child of another span.</p>
+
+<p><strong>Annotation</strong></p>
+
+<p>The annotation is how you tag your Spans to actually know what happened, there are two type of spans:</p>
+
+<ul>
+<li>Timestamp</li>
+<li>Binary</li>
+</ul>
+
+
+<p>Timestamp spans are used for tracing time related stuff, and Binary annotations are used to tag your operation with a particular context,
+which is useful for filtering later.</p>
+
+<p>For instance you can have a new <em>Trace</em> for each home page request, which decomposes in the <em>Memcache Span</em>
+the <em>Postgres Span</em> and the <em>Computation Span</em>, each of those
+with their particular <em>Start Annotation</em> and <em>Finish Annotation</em>.</p>
+
+<h1>API</h1>
+
+<p>Zipkin is programmed in Scala and uses thrift, since it's assumed you're going to have distributed operations,
+the <em>official client</em> is <a href="http://twitter.github.io/finagle/">Finagle</a>, which is kind of a RPC system for the JVM, but at least for me, it's quite ugly.</p>
+
+<p>Main reason is that it makes you feel that if you want to use Zipkin you must use a <em>Distributed Framework</em>, which is not at all necessary.
+For a moment I almost felt like <a href="http://en.wikipedia.org/wiki/Common_Object_Request_Broker_Architecture">Corba</a> and <a href="http://en.wikipedia.org/wiki/Distributed_Component_Object_Model">DCOM</a> were coming back from the grave trying to lure me into the abyss.</p>
+
+<p>There's also libraries for <a href="https://rubygems.org/gems/finagle-thrift">Ruby</a> and <a href="https://github.com/racker/restkin">Python</a> but none of them felt quite right to me,
+for Ruby you either use Finagle or you use Thrift, but there's no actual Zipkin library,
+for Python you have <a href="https://github.com/racker/tryfer">Tryfer</a> which is good and <a href="https://github.com/racker/restkin">Restkin</a> which is a REST API on top of it.</p>
+
+<h1>Clojure</h1>
+
+<p>In the process of understanding what Zipkin can do for you (that means <em>me</em>) I <a href="https://github.com/guilespi/clj-zipkin">hacked a client</a> for
+Clojure using <a href="https://github.com/livingsocial/clj-scribe/">clj-scribe</a> and <a href="https://github.com/xsc/thrift-clj">clj-thrift</a> which made the process almost painless.</p>
+
+<p>It comes with a ring handler so you can trace your incoming requests out of the box.</p>
+
+<p>```clojure
+ (require '[clj-zipkin.middleware :as m])</p>
+
+<p>   (defroutes routes</p>
+
+<pre><code> (GET "/" [] "&lt;h1&gt;Hello World&lt;/h1&gt;")
+ (route/not-found "&lt;h1&gt;Page not found&lt;/h1&gt;"))
+</code></pre>
+
+<p>   (def app</p>
+
+<pre><code>   (-&gt; routes
+   (m/request-tracer {:scribe {:host "localhost" :port 9410}
+                      :service "WebServer"})))
+</code></pre>
+
+<p>```</p>
+
+<p><em>Zipkin Web Analyzer</em>
+<img class="center" src="/images/blog/clj-zipkin-sample.png" width="580" height="680" title="'Zipkin Sample'" ></p>
+
+<p>It's far from perfect, undocumented and incomplete, but at least it's free :)</p>
+
+<p>Give it a try and let me know what you think.</p>
+
+<p><em>I'm <a href="http://www.twitter.com/guilespi">guilespi</a> at Twitter</em></p>
+]]></content>
+  </entry>
+  
+</feed>

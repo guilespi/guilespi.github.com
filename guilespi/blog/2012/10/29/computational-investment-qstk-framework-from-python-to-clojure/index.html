@@ -1,0 +1,565 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Computational Investment QSTK Framework from Python to Clojure - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="Last week started the course on Computational Investing from Coursera and I&#8217;ve been taking a look. What caught my attention is the libraries &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">Computational Investment QSTK Framework From Python to Clojure</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-29T01:07:00-02:00" pubdate data-updated="true">Oct 29<span>th</span>, 2012</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>Last week started the course on <a href="https://class.coursera.org/compinvesting1-2012-001/class/index">Computational Investing</a> from Coursera and I&#8217;ve been taking a look.</p>
+
+<p>What caught my attention is the libraries used for portfolio construction and management, <a href="http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit">QSTK</a>, an opensource python framework, based on numpy, scipy, matplotlib, pandas, etc.</p>
+
+<p>Looking at the <a href="http://wiki.quantsoftware.org/index.php?title=QSTK_Tutorial_1">first tutorial</a>&#8217;s <a href="https://gist.github.com/3971007">source code</a>, saw it as an opportunity to migrate the tutorials and libraries to Clojure and get to play a little with <a href="http://incanter.org/">Incanter</a>.</p>
+
+<p>I&#8217;m going to highlight what I&#8217;ve found interesting when migrating the tutorials. I&#8217;m assuming you have QSTK installed and the QS environment variable is set, since the code depends on that for data reading.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="o">^</span><span class="p">{</span><span class="ss">:dynamic</span> <span class="nv">true</span><span class="p">}</span> <span class="nv">*QS*</span> <span class="p">(</span><span class="nb">get </span><span class="p">(</span><span class="nf">System/getenv</span><span class="p">)</span> <span class="s">&quot;QS&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p><strong>NYSE operation dates</strong></p>
+
+<p>As part of the initialization process the tutorial calls a function <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.dateutil-pysrc.html#getNYSEdays">getNYSEDays</a>, which retrieves all the days there was trading at the NYSE. Migration is straightforward using incanter&#8217;s read-dataset to read file into memory and then filter the required range.</p>
+
+<div><script src='https://gist.github.com/3970987.js'></script>
+<noscript><pre><code>(defn get-NYSE-days
+  &quot;Create a set of timestamps between startday and endday
+  that correspond to the days there was trading at the NYSE&quot;
+  [start-date end-date time-of-day]
+  (let [dates-file (str *QS* &quot;/qstkutil/NYSE_dates.txt&quot;)
+        NYSE-dates (incanter.io/read-dataset dates-file)
+        fmt (formatter &quot;MM/dd/yyyy&quot;)
+        dates (incanter.core/$map #(parse fmt %) :col0 NYSE-dates)]
+    (set (filter (fn [d] (within? (interval start-date end-date) d))
+           (map #(plus % time-of-day) dates)))))
+</code></pre></noscript></div>
+
+
+<p>Pay attention to the <code>time-of-day</code> set at 16 hours, <a href="http://en.wikipedia.org/wiki/List_of_market_opening_times">the time NYSE closes</a>, we&#8217;ll see it again in unexpected places.</p>
+
+<p><strong>Data Access</strong></p>
+
+<p>QSTK provides a helper class called <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.DataAccess.DataAccess-class.html">DataAccess</a> used for reading and caching stock prices.</p>
+
+<p>As you see here there&#8217;s some data reading happening, we&#8217;re gonna take a look at these functions since we&#8217;ll need to write them from scratch.</p>
+
+<figure class='code'><figcaption><span>Data initialization in python tutorial </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">dataobj</span> <span class="o">=</span> <span class="n">da</span><span class="o">.</span><span class="n">DataAccess</span><span class="p">(</span><span class="s">&#39;Yahoo&#39;</span><span class="p">)</span>
+</span><span class='line'><span class="n">voldata</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;volume&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span><span class='line'><span class="n">close</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;close&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span><span class='line'><span class="n">actualclose</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;actual_close&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We&#8217;re going to separate this in two functions, first reading symbol data from disk using again read-dataset and creating a hash-map indexed by symbol name.</p>
+
+<figure class='code'><figcaption><span>Creating a symbols hash-map of incanter datasets</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='Clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">read-symbols-data</span>
+</span><span class='line'>  <span class="s">&quot;Returns a hashmap of symbols/incanter datasets read from QS data directory&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">source-in</span> <span class="nv">symbols</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">data-dir</span> <span class="p">(</span><span class="nb">str </span><span class="nv">*QS*</span> <span class="s">&quot;/QSData/&quot;</span> <span class="nv">source-in</span> <span class="s">&quot;/&quot;</span><span class="p">)]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nb">reduce </span><span class="o">#</span><span class="p">(</span><span class="nb">assoc </span><span class="nv">%1</span> <span class="nv">%2</span> <span class="p">(</span><span class="nf">incanter.io/read-dataset</span> <span class="p">(</span><span class="nb">str </span><span class="nv">data-dir</span> <span class="nv">%2</span> <span class="s">&quot;.csv&quot;</span><span class="p">)</span> <span class="ss">:header</span> <span class="nv">true</span><span class="p">))</span> <span class="p">{}</span> <span class="nv">symbols</span><span class="p">)))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Then if you take a look at <code>voldata</code> in a python repl, you can see pretty much what it&#8217;s doing</p>
+
+<pre><code>                       AAPL       GLD     GOOG        $SPX       XOM
+ 2012-05-01 16:00:00  21821400   7414800  2002300  2706893315  13816900
+ 2012-05-02 16:00:00  15263900   5632300  1611500  2634854740  11108700
+ 2012-05-03 16:00:00  13948200  13172000  1868000  2673299265   9998600
+</code></pre>
+
+<p>It&#8217;s grabbing the specified column <code>volume</code> or <code>close</code> from each symbol dataset, and it&#8217;s creating a new table with the resulting column renamed as the symbol.</p>
+
+<p>All the get_data magic happens inside <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.DataAccess-pysrc.html#DataAccess.get_data_hardread">get_data_hardread</a>, it&#8217;s an ugly piece of code making a lot of assumptions about column names, and even about market closing time. I guess you can only use this library for markets closing at 16 hours local time.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">timemonth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">timebase</span><span class="o">-</span><span class="n">timeyear</span><span class="o">*</span><span class="mi">10000</span><span class="p">)</span><span class="o">/</span><span class="mi">100</span><span class="p">)</span>
+</span><span class='line'><span class="n">timeday</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">timebase</span><span class="o">-</span><span class="n">timeyear</span><span class="o">*</span><span class="mi">10000</span><span class="o">-</span><span class="n">timemonth</span><span class="o">*</span><span class="mi">100</span><span class="p">))</span>
+</span><span class='line'><span class="n">timehour</span> <span class="o">=</span> <span class="mi">16</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I&#8217;ve translated that into these two functions:</p>
+
+<div><script src='https://gist.github.com/3971076.js'></script>
+<noscript><pre><code>(defn select-value
+  &quot;Given a dataset indexed by date, returns the value corresponding to a specified column
+  if existent for a specific date&quot;
+  [ds column date]
+  (let [row (ds {:Date date})]
+    (when-not (nil? row) (incanter.core/$ 0 column row))))
+
+(defn get-data
+  &quot;Given a list of `symbols`, its data and a list of specific `timestamps`, builds a matrix(sequence)
+  with each column corresponding to a stock and the value extracted using `column` 
+  :Date        AAPL    GOOG    WFC
+  2012-02-01   54.1    33.1    25.0
+  2012-02-02   56.3    33.4    22.9&quot;
+  [timestamps symbols column symbols-data time-of-day]
+  (let [grouped-data (reduce (fn [m, s] (assoc m (s 0) (incanter.core/$group-by :Date (s 1)))) {} symbols-data)]
+    (for [t timestamps]
+      (let [unparsed-date (unparse (formatters :year-month-day) t)]
+        (reduce #(merge %1 {(%2 0) (select-value (%2 1) column unparsed-date)}) {:Date (to-long t)} grouped-data)))))</code></pre></noscript></div>
+
+
+<p>In this case Clojure shines, the <a href="https://gist.github.com/3971102">original function</a> is almost 300 lines of code. I&#8217;m missing a couple of checks but it&#8217;s not bad for a rookie, I think.</p>
+
+<p>The helper function <code>select-value</code> is there in order to avoid an exception when trying to find stock data for a non existent date. Also the function returns <code>:Date</code> as a double since it&#8217;s easier to handle later for charting.</p>
+
+<p><strong>Charting</strong></p>
+
+<p>Charting with Incanter is straightforward, there a subtle difference with python since you need to add each series one by one. So what python is doing here charting multiple series at once</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">newtimestamps</span> <span class="o">=</span> <span class="n">close</span><span class="o">.</span><span class="n">index</span>
+</span><span class='line'><span class="n">pricedat</span> <span class="o">=</span> <span class="n">close</span><span class="o">.</span><span class="n">values</span> <span class="c"># pull the 2D ndarray out of the pandas object</span>
+</span><span class='line'><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">newtimestamps</span><span class="p">,</span><span class="n">pricedat</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We need a little function to solve it with Incanter. Each iteration gets reduced into the next with all the series accumulated in one chart.</p>
+
+<figure class='code'><figcaption><span>creates multiple time-series at once</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">multi-series-chart</span>
+</span><span class='line'>  <span class="s">&quot;Creates a xy-chart with multiple series extracted from column data</span>
+</span><span class='line'><span class="s">  as specified by series parameter&quot;</span>
+</span><span class='line'>  <span class="p">[{</span><span class="ss">:keys</span> <span class="p">[</span><span class="nv">series</span> <span class="nv">title</span> <span class="nv">x-label</span> <span class="nv">y-label</span> <span class="nv">data</span><span class="p">]}]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">chart</span> <span class="p">(</span><span class="nf">incanter.charts/time-series-plot</span> <span class="ss">:Date</span> <span class="p">(</span><span class="nb">first </span><span class="nv">series</span><span class="p">)</span>
+</span><span class='line'>                                                 <span class="ss">:x-label</span> <span class="nv">x-label</span>
+</span><span class='line'>                                                 <span class="ss">:y-label</span> <span class="nv">y-label</span>
+</span><span class='line'>                                                 <span class="ss">:title</span> <span class="nv">title</span>
+</span><span class='line'>                                                 <span class="ss">:series-label</span> <span class="p">(</span><span class="nb">first </span><span class="nv">series</span><span class="p">)</span>
+</span><span class='line'>                                                 <span class="ss">:legend</span> <span class="nv">true</span>
+</span><span class='line'>                                                 <span class="ss">:data</span> <span class="nv">data</span><span class="p">)]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nb">reduce </span><span class="o">#</span><span class="p">(</span><span class="nf">incanter.charts/add-lines</span> <span class="nv">%1</span> <span class="ss">:Date</span> <span class="nv">%2</span> <span class="ss">:series-label</span> <span class="nv">%2</span> <span class="ss">:data</span> <span class="nv">data</span><span class="p">)</span> <span class="nv">chart</span> <span class="p">(</span><span class="nb">rest </span><span class="nv">series</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p><strong>Data Mangling</strong></p>
+
+<p>Incanter has <em>a lot</em> of built-in functions and helpers to operate on your data, unfortunately I couldn&#8217;t use one of the many options for operating
+on a matrix, or even <code>$=</code>, since the data we&#8217;re processing has many <code>nil</code> values inside the dataset for dates the stock didn&#8217;t trade which raises an exception when
+treated as a number, which is what to-matrix does, tries to create an array of Doubles.</p>
+
+<p>There&#8217;s one more downside and it&#8217;s we need to keep the <code>:Date</code> column as-is when operating on the dataset, so we need to remove it, operate, and add it later again, what happens to be a beautiful one-liner in python</p>
+
+<figure class='code'><figcaption><span>This attempts a naive normalization dividing each row by the first one. </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'> <span class="n">normdat</span> <span class="o">=</span> <span class="n">pricedat</span><span class="o">/</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><figcaption><span>Or the daily return function. </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">dailyrets</span> <span class="o">=</span> <span class="p">(</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">1</span><span class="p">:,:]</span><span class="o">/</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,:])</span> <span class="o">-</span> <span class="mi">1</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I ended up writing from scratch the iteration and function applying code.</p>
+
+<div><script src='https://gist.github.com/3971236.js'></script>
+<noscript><pre><code>
+(defmacro apply-filtered
+  &quot;Given two sequences, apply a function to each pair of elements when condition is met
+  anaphoras n and m exists for each indexed element
+
+  e.g. (apply-filtered / [1 2 3] [1 0 3] when (&gt; m 0)) =&gt; (1 nil 1)
+  &quot;
+  [op a b &amp; condition]
+  `(for [x# (range (count ~a))]
+    (let [n# (nth ~a x#)
+          m# (nth ~b x#)]
+      (when (~(second condition) n# m#)
+        (~op n# m#)))))
+
+(defmacro apply-rows
+  &quot;Apply an operation to each row of the dataset excluding :Date column
+   A start row and a condition must be given
+
+  .e.g Divide each row by vector [1 0 3] starting from 0 validating divide by zero
+    (apply-rows ds (/ [1 2 3]) 0 (fn [n m] (&gt; m 0))&quot;
+  [data operation start cond]
+  `(let [raw-data# (incanter.core/$ :all [:not :Date] ~data)
+        raw-cols# (incanter.core/col-names raw-data#)
+        dates# (incanter.core/$ :all :Date ~data)] 
+       (incanter.core/col-names
+        (incanter.core/conj-cols
+         (for [~&#39;i (range ~start (incanter.core/nrow raw-data#))]
+           (apply-filtered
+                      ~(first operation)
+                      (vec (incanter.core/$ ~&#39;i [:not :Date] raw-data#))
+                      ~(second operation)
+                      :when ~cond))
+         dates#) (conj raw-cols# :Date))))
+</code></pre></noscript></div>
+
+
+<p>Maybe there&#8217;s an easier way but I couldn&#8217;t think of it, if you know a better way please drop me a line!</p>
+
+<p>Now normalization and daily-returns are at least manageable.</p>
+
+<figure class='code'><figcaption><span>Normalization and Daily Returns</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">normalize</span>
+</span><span class='line'>  <span class="s">&quot;Divide each row in a dataset by the first row&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">ds</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">first-row</span> <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nf">incanter.core/$</span> <span class="mi">0</span> <span class="p">[</span><span class="ss">:not</span> <span class="ss">:Date</span><span class="p">]</span> <span class="nv">ds</span><span class="p">))]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">apply-rows</span> <span class="nv">ds</span> <span class="p">(</span><span class="nb">/ </span><span class="nv">first-row</span><span class="p">)</span> <span class="mi">0</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">and </span><span class="p">(</span><span class="nb">not-any? nil? </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">])</span> <span class="p">(</span><span class="nb">&gt; </span><span class="nv">m</span> <span class="mi">0</span><span class="p">))))))</span>
+</span><span class='line'>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">daily-rets</span>
+</span><span class='line'>  <span class="s">&quot;Daily returns&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">data</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">apply-rows</span> <span class="nv">data</span>
+</span><span class='line'>            <span class="p">((</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">- </span><span class="p">(</span><span class="nb">/ </span><span class="nv">n</span> <span class="nv">m</span><span class="p">)</span> <span class="mi">1</span><span class="p">))</span> <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nf">incanter.core/$</span> <span class="p">(</span><span class="nb">- </span><span class="nv">i</span> <span class="mi">1</span><span class="p">)</span> <span class="p">[</span><span class="ss">:not</span> <span class="ss">:Date</span><span class="p">]</span> <span class="nv">data</span><span class="p">)))</span>
+</span><span class='line'>            <span class="mi">1</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">and </span><span class="p">(</span><span class="nb">not-any? nil? </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">])</span> <span class="p">(</span><span class="nb">&gt; </span><span class="nv">m</span> <span class="mi">0</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Having the helper functions done, running of the tutorial is almost declarative.</p>
+
+<div><script src='https://gist.github.com/3971246.js'></script>
+<noscript><pre><code>(defn run
+  []
+  (let [symbols [&quot;AAPL&quot;,&quot;GLD&quot;,&quot;GOOG&quot;,&quot;$SPX&quot;,&quot;XOM&quot;]
+        start-day (date-time 2012 1 1)
+        end-day (date-time 2012 12 31)
+        time-of-day (hours 16)
+        timestamps (get-NYSE-days start-day end-day time-of-day)
+        symbols-data (read-symbols-data &quot;Yahoo&quot; symbols)
+        adj-close-data (incanter.core/to-dataset
+                        (get-data timestamps symbols (keyword &quot;Adj Close&quot;) symbols-data time-of-day))]
+    (do
+      ;;first chart of the tutorial
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Adjusted Close&quot;
+                                               :title &quot;Adjusted close data&quot;
+                                               :data adj-close-data}))
+      ;;second chart of the tutorial
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Adjusted Close&quot;
+                                               :title &quot;Normalized close data&quot;
+                                               :data (normalize adj-close-data)}))
+      ;;daily returns
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Return&quot;
+                                               :title &quot;Daily Returns&quot;
+                                               :data (daily-rets adj-close-data)}))
+      ;;quotes comparison with scatter plot
+      (incanter.core/view (incanter.charts/scatter-plot
+                           &quot;AAPL&quot; &quot;GOOG&quot;
+                           :x-label &quot;AAPL&quot;
+                           :y-label &quot;GOOG&quot;
+                           :legend true
+                           :data (normalize adj-close-data)
+                           )))))</code></pre></noscript></div>
+
+
+<p>If you wanna take a look at the whole thing together here&#8217;s the <a href="https://gist.github.com/3971253">gist</a>, I may create a repo later.</p>
+
+<p><img class="center" src="/images/blog/chartincanter.png" width="380" height="480" title="'Incanter charting finance data'" ></p>
+
+<p>Please remember NumPy is way much faster than Clojure since it links <a href="http://www.netlib.org/lapack/">BLAS/Lapack</a> libraries.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">twitter</a></em></p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-29T01:07:00-02:00" pubdate data-updated="true">Oct 29<span>th</span>, 2012</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/clojure/'>clojure</a>, <a class='category' href='/blog/categories/coursera/'>coursera</a>, <a class='category' href='/blog/categories/python/'>python</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/" data-via="" data-counturl="http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2012/10/21/you-dont-redistribute-a-distribution/" title="Previous Post: You don't redistribute a distribution">&laquo; You don't redistribute a distribution</a>
+      
+      
+        <a class="basic-alignment right articlenav" href="/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/" title="Next Post: How long waiting for an answer in StackOverflow">How long waiting for an answer in StackOverflow &raquo;</a>
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What's so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen's club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/';
+        var disqus_url = 'http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

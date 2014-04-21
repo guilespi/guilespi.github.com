@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: statistics | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/statistics/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2014-04-21T19:02:31-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[How long waiting for an answer in StackOverflow]]></title>
+    <link href="http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow/"/>
+    <updated>2012-10-30T23:52:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2012/10/30/how-long-waiting-for-an-answer-in-stackoverflow</id>
+    <content type="html"><![CDATA[<p>I'm not a <a href="http://www.stackoverflow.com">StackOverflow</a> active contributor, something I recently decided should start to change.</p>
+
+<p>I think it's amazing the <code>speed</code> an answer is given for any asked question, like <em>freaking</em> fast. If you are using Google Reader to peek new questions filtered by tag, when you see a question, almost for sure it's already answered.</p>
+
+<p>Fortunately all StackExchange data is <a href="http://media10.simplex.tv/content/xtendx/stu/stackoverflow/">open</a>, so we can see exactly <em>how</em> fast is that. I used the online <a href="http://data.stackexchange.com/faq">data browser</a>, more than enough for the task.</p>
+
+<p>I decided to consider only the questions having an accepted answer, since questions with many bogus answers should not be treated as having an answer at all.</p>
+
+<p><strong>tl;dr</strong></p>
+
+<p>The average answer time seems to be dependent on a mix of the maturity of the language and how many people is using it.</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguage5.png" width="550" height="650" title="'How long waiting for an answer by language, easy questions'" ></p>
+
+<p>Hey, Haskell has pretty good answer times, at least considering its <a href="http://www.tiobe.com/index.php/content/paperinfo/tpci/index.html">33th</a> position in the <a href="http://en.wikipedia.org/wiki/TIOBE_index">TIOBE Index</a>.</p>
+
+<p><strong>Not all questions are the same</strong></p>
+
+<p>Of course not all questions are the same, this is from the first query I ran.</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguageunfiltered.png" width="550" height="650" title="'How long waiting for an answer by language, all questions'" ></p>
+
+<p>This is an unfiltered query using all the questions from year 2012, you see the average answer time is much higher than the previous chart, around 1000 minutes, looking at the data:</p>
+
+<pre><code>Language    Ans. Time         Stdev
+c               934       7630.98957971267
+c++            1036       7258.13498426685
+clojure        1078       7485.94721484444
+haskell        1199       9059.91937846459
+php            1210       8588.58929278208
+lua            1386       6569.08356022594
+c#             1452       8875.00837073432
+scala          1472      10707.9191188056
+javascript     1490       9756.64151519177
+java           1755      10541.6111024572
+ruby           2124      11850.4353701107
+</code></pre>
+
+<p>The standard deviation is huge, we have a lot of questions that took ages to get answered, making the average answer time meaningless.</p>
+
+<p>So I decided to take out questions with an answer time greater than 24 hours, as 92% of the questions have an approved answer in less than 5 hours.
+(<a href="https://gist.github.com/3984320">here</a> you can see the query used to get this table)</p>
+
+<pre><code>DifficultyGroup    Total     Average              StandardDev
+Easy                47099        27           44.7263057563449 
+Medium                344       691          339.312936469053
+Hard                 1926      3769         2004.75027395979
+Hell                 1623     66865        96822.8840748525
+</code></pre>
+
+<p>It started to look like something:</p>
+
+<p><img class="center" src="/images/blog/averageanswerbylanguage24.png" width="550" height="650" title="'How long waiting for an answer by language, less than 24 hours'" >
+<a href="https://gist.github.com/3984333">This</a> is the query.</p>
+
+<p>You see there, PHP running at front with 68 minutes average accepted answer time, either it's too easy or there're too many of them.</p>
+
+<p>If you wanna see how the distribution goes when considering accepted answers in less than 5 hours, is the first picture of the page, the trend is also there.</p>
+
+<p><strong>What about the time?</strong></p>
+
+<p>Something unexpected, average answer time is almost unaffected by the time of the day the question was asked.
+The only thing I see here is that Ruby programmers are being killed by the lunch break and c++ programmers slowly fade out with the day, ain't it?</p>
+
+<p><img class="center" src="/images/blog/averageanswerhourbyhour.png" width="550" height="650" title="'How long waiting for an answer by time of day, ruby and c++'" ></p>
+
+<p><a href="https://gist.github.com/3984329">This</a> is the query.</p>
+
+<p>There goes my idea of catching unanswered questions at night. It would be interesting to see how many cross-timezone answering is happening.</p>
+
+<p><strong>Conclusion</strong></p>
+
+<p>It should work better running a regression against the complete dataset using more features than only programming language and time of day
+ to automatically guess which questions have more chance of have a long life unanswered. Maybe next time.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">Twitter</a></em></p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[You don't redistribute a distribution]]></title>
+    <link href="http://guilespi.github.com/blog/2012/10/21/you-dont-redistribute-a-distribution/"/>
+    <updated>2012-10-21T14:54:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2012/10/21/you-dont-redistribute-a-distribution</id>
+    <content type="html"><![CDATA[<p>I've written a post for <a href="http://www.cabezapropia.com/">cabeza propia</a> on <a href="http://www.cabezapropia.com/el-primer-problema-sobre-la-distribucion-de-la-riqueza/">distribution of wealth</a>. If you read spanish, take a look.</p>
+
+<p>The main point is there's a semantic misunderstanding of what distribution of wealth is, confusing a statistical <a href="http://en.wikipedia.org/wiki/Frequency_distribution">frequency distribution</a> of income, with the transitive verb <code>distribute</code>.
+As if the current distribution of wealth is the result of someone who decided to distribute it unfairly.</p>
+
+<p>I pretty much agree on <a href="http://www.paulgraham.com/wealth.html">Paul Graham's take</a> on wealth creation, and think our focus should be on individuals being able to create more value for society and for themselves.</p>
+
+<p><img class="center" src="/images/blog/sharingpie.jpg" width="450" height="550" title="'Wealth as a finite pie to be distributed'" ></p>
+
+<p>The semantic confusion may be just part of the reason we're having the wrong conversation, about distributing, instead of being about affecting the distribution by creating.</p>
+]]></content>
+  </entry>
+  
+</feed>

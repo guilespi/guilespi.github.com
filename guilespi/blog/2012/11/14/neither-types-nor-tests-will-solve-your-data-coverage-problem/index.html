@@ -1,0 +1,403 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Neither types nor tests will solve your data coverage problem - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="I just watched the Strangeloop talk titled Types vs. Tests: An Epic Battle from Amanda Laucher and Paul Snively.
+As Amanda says it&#8217;s a &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">Neither Types Nor Tests Will Solve Your Data Coverage Problem</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-11-14T22:24:00-02:00" pubdate data-updated="true">Nov 14<span>th</span>, 2012</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>I just watched the Strangeloop talk titled <a href="http://www.infoq.com/presentations/Types-Tests">Types vs. Tests: An Epic Battle</a> from Amanda Laucher and Paul Snively.
+As Amanda says it&#8217;s a discussion many of us have had in the past, I used to talk about it with <a href="http://www.twitter.com/fedesilva">fedesilva</a>,
+hardcore Scala advocate, you know what I mean?</p>
+
+<p>For me, I think types and tests are two sides of the same coin, because neither strategy
+for proving correctness is computable.</p>
+
+<p>Bear with me.</p>
+
+<p>The purpose of having types or having tests, it&#8217;s to prove your program to be correct before <a href="http://blog.guillermowinkler.com/blog/2012/11/07/whats-a-bug-worth/">your bugs reach your customers</a>,
+one strategy tries to prove it <em>at compile time</em> and the other <em>after compile time</em>. But what it really means your program to be <em>correct</em>?</p>
+
+<p>Let&#8217;s go for ride on <a href="http://en.wikipedia.org/wiki/Computability_theory">Computability Theory</a>.</p>
+
+<p><strong>Functions and programs</strong></p>
+
+<p>According to the definition a function <code>f</code> is computable if a program <code>P</code> exists which can calculate the function given unlimited amounts of time and storage.</p>
+
+<pre><code>f:N→N is computable ↔ ∃ a program P which computes the function.
+</code></pre>
+
+<p>Also we must define when a program <code>P</code> converges for input <code>n</code>.</p>
+
+<pre><code>Program P with input n converges if ∃ m ∈ N / &lt;Q,n&gt; = m , it's written &lt;Q,n&gt;↓
+</code></pre>
+
+<p>In computer theory there are well known functions to be non computable, two of them are:</p>
+
+<pre><code>Θ(n) = 1  if &lt;Ix(n), n&gt;↓
+       0  if &lt;Ix(n), n&gt;↑
+</code></pre>
+
+<p>Which says that the function <code>Θ</code> is equal to 1 if the program of index <code>n</code> converges on input <code>n</code> and 0 if the program of index <code>n</code> diverges on input <code>n</code>.</p>
+
+<p>There&#8217;s another very famous function which has been proved to be non computable.</p>
+
+<pre><code>stop(p, n) = 1 if &lt;Ix(p), n&gt;↓
+             0 if &lt;Ix(p), n&gt;↑
+</code></pre>
+
+<p>Which pretty much says that given a description of an arbitrary computer program, decide whether the program finishes running or continues to run forever.
+As you may have guessed, it&#8217;s the well known <a href="http://en.wikipedia.org/wiki/Halting_problem">Halting Problem</a>, and it&#8217;s <em>not</em> computable.</p>
+
+<p><strong>How the Halting Problem relates to types and tests</strong></p>
+
+<p>Let&#8217;s assume our program <code>P</code> we&#8217;re trying to prove correct, computes the function <code>f:N→N</code>. We can define our program that proves correctness, a program <code>T</code>
+that computes the function</p>
+
+<pre><code>ft:N→{0,1} 
+</code></pre>
+
+<p>Which is to say, for every input of the domain, our program <code>T</code> decides if the program converges or not. It&#8217;s starting to sound familiar ain&#8217;t it?</p>
+
+<p>Let&#8217;s assume such a program <code>T</code> exists to prove correctness, and we have a macro <code>MT</code> to find such a program given <code>P</code>. We could write the following program <code>Q</code></p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>PROGRAM(x0, x1)
+</span><span class='line'>x3=MT(x0)
+</span><span class='line'>x4=EVAL_PROG(x3, x1)
+</span><span class='line'>RESULT(x4)</span></code></pre></td></tr></table></div></figure>
+
+
+<p>What <code>Q</code> does it&#8217;s having received a program <code>x0</code> and an input <code>x1</code>, first finds the <code>T</code> decider program for the program <code>x0</code>, and then evaluates the program
+with the input <code>x1</code>.</p>
+
+<p>So what do we have here?</p>
+
+<pre><code>Q(p, n) = 1 ↔ ft(n) = 1 ↔ &lt;P, n&gt; ↓
+</code></pre>
+
+<p>So we have written a program which computes the <code>stop</code> function, which is absurd. It means we cannot have a program that decides on the computability of
+a program.</p>
+
+<p><strong>Show me the code</strong></p>
+
+<p>In practice, it means that if you have this program</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='c'><span class='line'><span class="kt">int</span> <span class="nf">f</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>   <span class="k">while</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>     <span class="n">x</span><span class="o">--</span><span class="p">;</span>
+</span><span class='line'>   <span class="p">}</span>
+</span><span class='line'>   <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span><span class='line'><span class="p">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>This program doesn&#8217;t stop for <code>x &lt; 0</code>, and according to theory, there&#8217;s no program you can write to find out about it.</p>
+
+<p>There are also a few other funny cases regarding the domain of your functions, such as</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='c'><span class='line'><span class="kt">int</span> <span class="nf">f</span><span class="p">(</span><span class="kt">int</span> <span class="n">x</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>   <span class="k">return</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="mi">3</span><span class="p">);</span>
+</span><span class='line'><span class="p">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>This function fails miserably if <code>x = 3</code>. Just think about it when your functions have a more complex domain.</p>
+
+<p><strong>How to improve your tests for correctness</strong></p>
+
+<p>Most people I see are worried about having 100% <em>code coverage</em>, but it&#8217;s not that usual to see people worried about <em>data coverage</em>.</p>
+
+<p>As seen in the previous example if you forget to test for <code>x = 3</code> you may have 100% code coverage but your program will blow up anyway.</p>
+
+<p>Regarding types, I know <a href="http://en.wikipedia.org/wiki/Dependent_type">Dependent Types</a> exists, but it&#8217;s the other side of the same coin, you have to provide a constructive
+proof that the type is <em>inhabited</em>. So if you don&#8217;t define your type considering the special cases of your function domain, no one is coming
+up to save your ass.</p>
+
+<p>But when thinking about correctness you should be thinking about your function domain.</p>
+
+<p><strong>Conclusion</strong></p>
+
+<p>Both tests and types are useful ways to validate your program is correct, but not perfect. Even the discussion is meaningless, because it&#8217;s just a matter
+of taste whether you like to specify your correctness rules in types or tests, but it&#8217;s something you will keep doing as far as I can tell.</p>
+
+<p>As Rich Hickey <a href="https://twitter.com/richhickey/status/116490495500357633">said</a>, both tests and types are like guard rails, and you must know the cliff is there in order to decide building them.</p>
+
+<p><strong>Update:</strong>
+Many people wrote to me as if I&#8217;m saying you can&#8217;t prove a program to be correct, that was not what I&#8217;ve tried to say.
+It was that you can&#8217;t have a system that can prove programs to be correct without specifying the rules yourself.
+That is, it was a case against <code>Q</code> not against <code>T</code>.</p>
+
+<p><em>And hey! you follow me on <a href="http://www.twitter.com/guilespi">twitter</a>!</em></p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-11-14T22:24:00-02:00" pubdate data-updated="true">Nov 14<span>th</span>, 2012</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/computer-science/'>computer science</a>, <a class='category' href='/blog/categories/programming/'>programming</a>, <a class='category' href='/blog/categories/testing/'>testing</a>, <a class='category' href='/blog/categories/types/'>types</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/" data-via="" data-counturl="http://guilespi.github.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2012/11/07/whats-a-bug-worth/" title="Previous Post: What's a bug worth, a case for continuous integration">&laquo; What's a bug worth, a case for continuous integration</a>
+      
+      
+        <a class="basic-alignment right articlenav" href="/blog/2012/11/25/coxcomb-charts-with-raphael-dot-js/" title="Next Post: Coxcomb Charts with Raphael.js">Coxcomb Charts with Raphael.js &raquo;</a>
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What's so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen's club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/';
+        var disqus_url = 'http://guilespi.github.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

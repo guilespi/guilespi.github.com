@@ -1,0 +1,496 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Group-by considered harmful - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="Main reason big data is so trendy is because it&#8217;s closely related with web scale, and that of course means money. It&#8217;s the kind of &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2012/10/19/group-by-considered-harmful/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">Group-by Considered Harmful</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-19T23:01:00-02:00" pubdate data-updated="true">Oct 19<span>th</span>, 2012</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>Main reason big data is so trendy is because it&#8217;s closely related with web scale, and that of course means money. It&#8217;s the kind of problem you would <em>love</em> to have. Everybody thinks big data is about being <a href="http://techcrunch.com/2012/08/22/how-big-is-facebooks-data-2-5-billion-pieces-of-content-and-500-terabytes-ingested-every-day/">Facebook</a>, or <a href="http://www.slideshare.net/nkallen/q-con-3770885">Twitter</a>, or <a href="http://highscalability.com/blog/2012/2/13/tumblr-architecture-15-billion-page-views-a-month-and-harder.html">Tumblr</a></p>
+
+<p>But big data is not only about <a href="http://gigaom.com/cloud/facebook-hadoop-cluster/">moving your humongous petabytes</a> of user pictures from one place to another, big data is also a state of mind, and it can help you solve problems better and faster even if you&#8217;re not on the petabyte scale.</p>
+
+<p>And if you have ever seen a report taking ages to render, this post is for you. Because we&#8217;re in the Google age, so if you tell me it&#8217;s acceptable for you to take fucking <em>seconds</em> to spit that information out, you are delusional. In 2008, <a href="http://googleblog.blogspot.com/2008/07/we-knew-web-was-big.html">Google index size</a> was over a trillion pages, and the typical search returns <a href="http://googleblog.blogspot.com/2009/01/powering-google-search.html">in less than 0.2 seconds</a>.</p>
+
+<p>And one of the main reasons Google is so fast and engineers still deliver applications with such a poor performance, is because we&#8217;re still modeling data as if disk space is an issue.</p>
+
+<p>Let me explain.</p>
+
+<p>Let&#8217;s think about a telephony system that needs to keep track of every call entering a company or made by employees. A typical simplified cdr -call detail report- table will look like this:</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+
+</span><span class='line'>| Call Start | Call End | Duration | Direction |    Number     | Extension |   User   |
+</span><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+
+</span><span class='line'>| 20:05      | 20:15    |      600 | OUT       | +130512319292 |      1010 | John.Doe |
+</span><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>That&#8217;s perfectly fine, and if someone wants to know who the hell did that 40 minute call to the hot-line, it&#8217;s all in there.</p>
+
+<p>But let&#8217;s suppose you&#8217;re a contact center organization with 2000 extensions, you could easily be dialing 150K calls an hour. That&#8217;s billion of rows in a year&#8217;s operation and the table being hit pretty hard. Then someone asks, how much money have we spent in calls to Morocco? Or better yet, I want an alarm to be triggered when a deviation from standard operation occurs to detect fraud.</p>
+
+<p>So to avoid <a href="http://www.toadworld.com/Knowledge/DatabaseKnowledge/GuyHarrisonsResolvingOracleContention/ResolvingOracleContention/Feb2008Article/tabid/304/Default.aspx">locking and contention</a> over your call table, you may do something like this:</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>+------------+-----------------+----------+--------------+-------------+
+</span><span class='line'>|   Slice    | Number of calls | Duration |     User     | Destination |
+</span><span class='line'>+------------+-----------------+----------+--------------+-------------+
+</span><span class='line'>| 2012-10-10 |             121 |    49239 | John.Doe     | Germany     |
+</span><span class='line'>| 2012-10-10 |              90 |    28711 | John.Doe     | Australia   |
+</span><span class='line'>| 2012-09-02 |              78 |    12111 | Richard.Read | Uruguay     |
+</span><span class='line'>+------------+-----------------+----------+--------------+-------------+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>So you separate your <a href="http://datawarehouse4u.info/OLTP-vs-OLAP.html">realtime transactions</a> hitting the cdr, from the table used to query about statistical stuff. In datawarehousing there&#8217;s a name for that, it&#8217;s called <a href="http://en.wikipedia.org/wiki/Extract,_transform,_load">ETL</a>. The process of offloading your data to a system designed to be queried against. A real pain in the ass.</p>
+
+<p>Of course you have an advantage, you can answer many questions using the same stored information.</p>
+
+<ul>
+<li>How many calls has made Ricky this month?</li>
+<li>How many minutes were spent this week calling Bangladesh, by all users?</li>
+<li>What&#8217;s the day of the month with the most number of calls</li>
+</ul>
+
+
+<p>And we all know how, we use <a href="http://msdn.microsoft.com/en-us/library/b6ddy7ah(v=vs.80).aspx">GROUP BY</a>, the most overlooked clause in the performance analysis.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="k">SET</span> <span class="n">TRANSACTION</span> <span class="k">ISOLATION</span> <span class="k">LEVEL</span> <span class="k">READ</span> <span class="n">UNCOMMITED</span><span class="p">;</span>
+</span><span class='line'><span class="k">SELECT</span> <span class="k">User</span><span class="p">,</span> <span class="k">SUM</span><span class="p">(</span><span class="n">Duration</span><span class="p">)</span> <span class="k">as</span> <span class="n">Duration</span>
+</span><span class='line'><span class="k">FROM</span> <span class="n">CallSummary</span>
+</span><span class='line'><span class="k">WHERE</span> <span class="n">Slice</span> <span class="o">=</span> <span class="s1">&#39;2012-10-10&#39;</span>
+</span><span class='line'><span class="k">GROUP</span> <span class="k">BY</span> <span class="k">User</span><span class="p">;</span>
+</span><span class='line'><span class="k">COMMIT</span><span class="p">;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Then you face a problem again, whether to be fast, or to be up-to-date. Because if you update your summary every night you cannot detect a fraud deviation in the last 30 minutes, but if you update your summary with every call you have again the contention issue.</p>
+
+<p>But why is it that you need to have all the information in the same table?</p>
+
+<p>It&#8217;s the relational way of storing information, which gives you flexibility when you don&#8217;t know what you&#8217;re going to do with your data, but can be the cause of performance degradation. If you&#8217;re using group-by, the engine is iterating over each value in order to sum it up, there&#8217;s no free way out of that. I will show you a way that costs disk space and a loss in query flexibility.</p>
+
+<p>Before continuing with data modeling, let me do a little digression on data visualization.</p>
+
+<p>There&#8217;s a paper by <a href="http://www.perceptualedge.com/articles/visual_business_intelligence/differences_in_analytical_tools.pdf">Stephen Few</a>, who divides analytical audiences into three different types:</p>
+
+<p>1) Exploratory Analytics</p>
+
+<p><em>Strong need for data exploration. The analyst approaches data with usually open ended questions &#8220;What may be hiding here that&#8217;s interesting?&#8221;. Tools such as <a href="http://www.panopticon.com/">Panopticon Explorer</a> or <a href="http://spotfire.tibco.com/">Spotfire</a> are in this category.</em></p>
+
+<p>2) Custom Analytics</p>
+
+<p><em>People analyzing information in routine ways, performing the same analytical task as part of their job. User only needs to understand the information presented and business processes.</em></p>
+
+<p>3) Customizable Analytics</p>
+
+<p><em>Provides ready-made libraries for developers that need to create an application, such as <a href="http://www.qlikview.com/">QlikView</a>.</em></p>
+
+<p>And for some reason that escapes me, engineers almost always get stuck in a mix of options 1 and 2. We think our users to be creative geniuses with a need to derive hidden insights from our data, so we put this wonderful flexible tools in place for them.</p>
+
+<p>Bullshit. People want to get their job done and go home with the kids, and it&#8217;s <em>your</em> job to know better.</p>
+
+<p>Most of the time reporting or &#8220;analytics&#8221; as it&#8217;s usually called, is not analytics, because the user is not doing analysis, he&#8217;s just looking at data translated into information. And what data you&#8217;re putting on the screen, is the result of proper program management and understanding of your user&#8217;s needs. Or is it that it took you months to push that product out of the door and you don&#8217;t really know which information is relevant to your users?</p>
+
+<p>And if you do, why is it that you&#8217;re modeling your data as if you don&#8217;t?</p>
+
+<p>Hey, we&#8217;ll just let them query the information using all this dimensions, cool, and you can have this pivot table here, you see it &#8230;pivoting&#8230; give me fucking a break, the last time I started dragging and dropping dimensions in a pivot table I had a surmenage, who <em>are</em> your users?</p>
+
+<p>Digression ended, how do you escape the group-by trap?</p>
+
+<p>Well, you just store it grouped according to your query needs. I&#8217;ll show you first the idea, and then a specific Cassandra modeling of it.</p>
+
+<p>Let&#8217;s suppose that after talking to our users, we come to the conclusion they need the following questions answered:</p>
+
+<ul>
+<li>How many minutes spent in outgoing calls to different destinations, by day, week and month.</li>
+<li>How many calls made by users by day, week and month.</li>
+</ul>
+
+
+<p>We can storage each counter separately, and only lock when updating a specific counter. Our counters will have this format:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Destination</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Period</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Slice</span><span class="o">&gt;</span>
+</span><span class='line'><span class="n">CallsMade</span><span class="p">:</span><span class="o">&lt;</span><span class="k">User</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Period</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Slice</span><span class="o">&gt;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Where <code>&lt;Destination&gt;</code> is any destination we&#8217;ve called, <code>&lt;User&gt;</code> is any user in the system, <code>&lt;Period&gt;</code> is one of &#8220;ByDay&#8221;, &#8220;ByMonth&#8221; and &#8220;ByWeek&#8221;, and <code>&lt;Slice&gt;</code> is the specific time the value is being counted for.</p>
+
+<p>So an instance of our data may look like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="n">Canada</span><span class="p">:</span><span class="n">ByDay</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">09</span> <span class="o">=</span> <span class="mi">432</span> <span class="p">;</span> <span class="mi">432</span> <span class="n">minutes</span> <span class="k">in</span> <span class="n">calls</span> <span class="n">made</span> <span class="k">to</span> <span class="n">Canada</span> <span class="k">on</span> <span class="n">the</span> <span class="k">day</span> <span class="mi">2012</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">09</span>
+</span><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="n">USA</span><span class="p">:</span><span class="n">ByMonth</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">11</span> <span class="o">=</span> <span class="mi">54021</span> <span class="p">;</span> <span class="mi">54021</span> <span class="n">minutes</span> <span class="k">in</span> <span class="n">calls</span> <span class="n">made</span> <span class="k">to</span> <span class="n">USA</span> <span class="k">on</span> <span class="n">November</span>
+</span><span class='line'><span class="n">CallsMade</span><span class="p">:</span><span class="n">John</span><span class="p">.</span><span class="n">Doe</span><span class="p">:</span><span class="n">ByDay</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">12</span><span class="o">-</span><span class="mi">20</span> <span class="o">=</span> <span class="mi">43</span> <span class="p">;</span> <span class="n">John</span> <span class="n">made</span> <span class="mi">43</span> <span class="n">calls</span> <span class="n">today</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>If you&#8217;re looking at it and you think it looks like a map, it&#8217;s pretty much one. With the main difference each key is isolated from each other, you don&#8217;t need to lock on a page and four indexes in order to update a row. Each value gets updated separately.</p>
+
+<p>There&#8217;s two things we need to be sure about:</p>
+
+<ul>
+<li>Counter increment or decrement supporting concurrency</li>
+<li>A way to query for date ranges, and it should be <em>fast</em></li>
+</ul>
+
+
+<p>So it happens, we can do this with <a href="http://wiki.apache.org/cassandra/Counters">Cassandra counters</a>, and we get the bonus of having our data replicated and distributed, so you can scale out <a href="http://stackoverflow.com/questions/8839436/when-does-cassandra-hit-amdahls-law">almost</a> <a href="http://techblog.netflix.com/2011/11/benchmarking-cassandra-scalability-on.html">linearly</a>, no matter how many users or destinations you have, or how long you decide to keep track of statistics.</p>
+
+<p>The modeling is pretty straightforward, it looks like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">Statistics</span> <span class="err">=</span> <span class="p">{</span>
+</span><span class='line'>   <span class="err">OutgoingMinutes:Canada:ByDay</span> <span class="err">=</span> <span class="err">{</span>
+</span><span class='line'>        <span class="err">2012-10-09</span> <span class="err">:</span> <span class="err">432</span>
+</span><span class='line'>        <span class="err">2012-10-08</span> <span class="err">:</span> <span class="err">121</span>
+</span><span class='line'>        <span class="err">2012-10-07</span> <span class="err">:</span> <span class="err">987</span>
+</span><span class='line'>        <span class="err">2012-09-11</span> <span class="err">:</span> <span class="err">100</span>
+</span><span class='line'>        <span class="err">...</span>
+</span><span class='line'>   <span class="p">}</span><span class="err">,</span>
+</span><span class='line'>   <span class="err">OutgoingMinutes:USA:ByMonth</span> <span class="err">=</span> <span class="p">{</span>
+</span><span class='line'>        <span class="err">2012-11</span> <span class="err">:</span> <span class="err">54021</span>
+</span><span class='line'>        <span class="err">2012-10</span> <span class="err">:</span> <span class="err">43222</span>
+</span><span class='line'>        <span class="err">...</span>
+</span><span class='line'>   <span class="p">}</span><span class="err">,</span>
+</span><span class='line'>   <span class="err">CallsMade:John.Doe:ByDay</span> <span class="err">=</span> <span class="p">{</span>
+</span><span class='line'>        <span class="err">2012-12-20</span> <span class="err">:</span> <span class="err">43,</span>
+</span><span class='line'>        <span class="err">2012-12-19</span> <span class="err">:</span> <span class="err">34,</span>
+</span><span class='line'>        <span class="err">...</span>
+</span><span class='line'>   <span class="p">}</span>
+</span><span class='line'><span class="err">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>I like modeling Cassandra schemas like JSON, it helps visualizing data layout better. For this particular case each element is:</p>
+
+<p><code>Statistics</code> is the Column Family, <code>OutgoingMinutes:Canada:ByDay</code> is the Row Key, <code>2012-10-09</code> is the Column name -you&#8217;re going to be sorting by this value- and
+<code>432</code> is the value, this is a counter column type that supports distributed updating.</p>
+
+<p>You can create the column family like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">create</span> <span class="err">column</span> <span class="err">family</span> <span class="err">Statistics</span> <span class="err">with</span> <span class="err">column_type=Standard</span> <span class="err">and</span> <span class="err">default_validation_class=CounterColumnType</span> <span class="err">and</span> <span class="err">key_validation_class=UTF</span><span class="mi">8</span><span class="err">Type</span> <span class="err">and</span> <span class="err">comparator=UTF</span><span class="mi">8</span><span class="err">Type;</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>When you&#8217;ve been factorizing things out for years, repeating the key in order to have different values it&#8217;s nothing less than a deadly sin.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">OutgoingMinutes:Canada:ByDay</span> <span class="err">=</span> <span class="mi">100</span>
+</span><span class='line'><span class="err">OutgoingMinutes:Canada:ByMonth</span> <span class="err">=</span> <span class="mi">1000</span>
+</span><span class='line'><span class="err">OutgoingMinutes:Canada:ByYear</span> <span class="err">=</span> <span class="mi">10000</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>It&#8217;s like it&#8217;s screaming for a normalization, so much bytes being wasted in key names!</p>
+
+<p>But hey, we&#8217;re rendering views like this in our cluster with 100+ GB of data in milliseconds, <em>without</em> doing any kind of ETL.</p>
+
+<p><img class="left" src="/images/blog/countervisualization.png" width="580" height="680" title="'i6 analytics visualization'" ></p>
+
+<p>We&#8217;re trading disk space for computation <em>and</em> I/O time, in order to improve query performance, but it&#8217;s I/O time the usual culprit, having to iterate over a more flexible data structure in order to satisfy the rendering of a particular view . Sometimes you can even trade computation time for I/O time to improve performance, as in the case of <a href="http://www.datastax.com/dev/blog/whats-new-in-cassandra-1-0-compression">Cassandra</a> <a href="http://www.edwardcapriolo.com/roller/edwardcapriolo/entry/cassandra_compression_is_like_getting">data compression</a>.</p>
+
+<p>Wrapping up, this is not a case against relational databases, it&#8217;s a case for modeling things carefully, you don&#8217;t have to stick to an option because it seems to be flexible enough to accommodate all needs. You can always implement a message queue on top of MySQL, but it would be foolish not to use RabbitMQ, and you can always implement an inverted index on top of MySQL, but you should better use Lucene.</p>
+
+<p>Data storage doesn&#8217;t need to be <em>always</em> relational.</p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-10-19T23:01:00-02:00" pubdate data-updated="true">Oct 19<span>th</span>, 2012</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/big-data/'>Big Data</a>, <a class='category' href='/blog/categories/cassandra/'>Cassandra</a>, <a class='category' href='/blog/categories/nosql/'>NoSQL</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2012/10/19/group-by-considered-harmful/" data-via="" data-counturl="http://guilespi.github.com/blog/2012/10/19/group-by-considered-harmful/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2012/09/02/waterfall-is-a-mindset/" title="Previous Post: Waterfall is a mindset">&laquo; Waterfall is a mindset</a>
+      
+      
+        <a class="basic-alignment right articlenav" href="/blog/2012/10/21/you-dont-redistribute-a-distribution/" title="Next Post: You don't redistribute a distribution">You don't redistribute a distribution &raquo;</a>
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/12/01/whats-so-great-about-reducers/">What's so great about Reducers?</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen's club?</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2012/10/19/group-by-considered-harmful/';
+        var disqus_url = 'http://guilespi.github.com/blog/2012/10/19/group-by-considered-harmful/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

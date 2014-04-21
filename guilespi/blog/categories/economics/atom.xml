@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: economics | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/economics/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2014-04-21T19:02:31-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[You don't redistribute a distribution]]></title>
+    <link href="http://guilespi.github.com/blog/2012/10/21/you-dont-redistribute-a-distribution/"/>
+    <updated>2012-10-21T14:54:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2012/10/21/you-dont-redistribute-a-distribution</id>
+    <content type="html"><![CDATA[<p>I've written a post for <a href="http://www.cabezapropia.com/">cabeza propia</a> on <a href="http://www.cabezapropia.com/el-primer-problema-sobre-la-distribucion-de-la-riqueza/">distribution of wealth</a>. If you read spanish, take a look.</p>
+
+<p>The main point is there's a semantic misunderstanding of what distribution of wealth is, confusing a statistical <a href="http://en.wikipedia.org/wiki/Frequency_distribution">frequency distribution</a> of income, with the transitive verb <code>distribute</code>.
+As if the current distribution of wealth is the result of someone who decided to distribute it unfairly.</p>
+
+<p>I pretty much agree on <a href="http://www.paulgraham.com/wealth.html">Paul Graham's take</a> on wealth creation, and think our focus should be on individuals being able to create more value for society and for themselves.</p>
+
+<p><img class="center" src="/images/blog/sharingpie.jpg" width="450" height="550" title="'Wealth as a finite pie to be distributed'" ></p>
+
+<p>The semantic confusion may be just part of the reason we're having the wrong conversation, about distributing, instead of being about affecting the distribution by creating.</p>
+]]></content>
+  </entry>
+  
+</feed>
