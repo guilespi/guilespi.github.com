@@ -117,7 +117,7 @@
   </header>
 
 
-<div class="entry-content"><p>This is the second post in the Decompiling Clojure series, <a href="blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">in the first post</a> I showed what Clojure looks like in bytecode.</p>
+<div class="entry-content"><p>This is the second post in the Decompiling Clojure series, <a href="http://blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">in the first post</a> I showed what Clojure looks like in bytecode.</p>
 
 <p>For this entry, I&#8217;ll do a compiler overview, the idea is to understand why and how does Clojure looks like that.</p>
 
@@ -389,7 +389,7 @@ the <code>then</code> branch of the if test:</p>
 
 <p>This is important because the reader is responsible for reading line and column number information, and establishing a relationship between tokens read and locations in the file.</p>
 
-<p>One of the main drawbacks of the reader used by the compiler is that much of the line and column number information is lost, that&#8217;s one of the reasons <a href="blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">we saw in our earlier post</a> that for a 7 line function only one line was properly mapped, interestingly, the line corresponding to the outter s-expression.</p>
+<p>One of the main drawbacks of the reader used by the compiler is that much of the line and column number information is lost, that&#8217;s one of the reasons <a href="http://blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">we saw in our earlier post</a> that for a 7 line function only one line was properly mapped, interestingly, the line corresponding to the outter s-expression.</p>
 
 <p>We will have to modify this reader if we want proper debugging information for our debugger.</p>
 
