@@ -4,7 +4,7 @@
   <title><![CDATA[Category: jvm | Interrupted]]></title>
   <link href="http://guilespi.github.com/blog/categories/jvm/atom.xml" rel="self"/>
   <link href="http://guilespi.github.com/"/>
-  <updated>2014-04-22T10:41:35-03:00</updated>
+  <updated>2014-04-22T18:49:45-03:00</updated>
   <id>http://guilespi.github.com/</id>
   <author>
     <name><![CDATA[Guillermo Winkler]]></name>
@@ -50,6 +50,10 @@
 
 
 <p>There's <a href="http://www.youtube.com/watch?v=KhRQmT22SSg">a great talk from Timothy Baldridge</a> showing some examples using the CinC analyzer, watch it.</p>
+
+<p><strong>Note</strong> <em>CinC developer <a href="https://github.com/Bronsa">Nicola Mometto</a> <a href="https://twitter.com/Bronsa_/status/458643972555300866">pointed out</a> that the analyzer written by Ambrose and CinC are indeed different projects. Which I should've noticed myself since
+the analyzer by Ambrose uses the analyzer from the original Clojure compiler, which is <a href="https://github.com/clojure/jvm.tools.analyzer/blob/master/src/main/clojure/clojure/jvm/tools/analyzer.clj#L843">exposed as a function</a>. Part of my mistake was surely derived from the fact one is called <code>tools.analyzer.jvm</code> and
+the other one is called <code>jvm.tools.analyzer</code></em></p>
 
 <h2>Compilation process</h2>
 
