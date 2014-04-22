@@ -4,7 +4,7 @@
   <title><![CDATA[Category: jvm | Interrupted]]></title>
   <link href="http://guilespi.github.com/blog/categories/jvm/atom.xml" rel="self"/>
   <link href="http://guilespi.github.com/"/>
-  <updated>2014-04-22T18:49:45-03:00</updated>
+  <updated>2014-04-22T18:51:10-03:00</updated>
   <id>http://guilespi.github.com/</id>
   <author>
     <name><![CDATA[Guillermo Winkler]]></name>
@@ -38,7 +38,7 @@
 
 <p>In the original Clojure compiler you don't have a chance to extend, modify or use, many of the data produced by the compilation process.</p>
 
-<p>For instance the <a href="https://github.com/clojure/core.typed">Typed Clojure</a> project, which adds <a href="http://wphomes.soic.indiana.edu/jsiek/what-is-gradual-typing/">gradual typing</a> to Clojure, <a href="http://dev.clojure.org/display/design/Provide+friendly+interface+to+Clojure's+analyzer,+independently+callable+a+la+carte">needed a friendlier interface</a> to the compiler analyzer phase. It was first developed by Ambrose Bonnair-Sergeant <a href="https://github.com/frenchy64/analyze">as an interface to the Compiler analyzer</a> and then moved to be part of the <a href="https://github.com/clojure/tools.analyzer">CinC analyzer</a>.</p>
+<p>For instance the <a href="https://github.com/clojure/core.typed">Typed Clojure</a> project, which adds <a href="http://wphomes.soic.indiana.edu/jsiek/what-is-gradual-typing/">gradual typing</a> to Clojure, <a href="http://dev.clojure.org/display/design/Provide+friendly+interface+to+Clojure's+analyzer,+independently+callable+a+la+carte">needed a friendlier interface</a> to the compiler analyzer phase. It was first developed by Ambrose Bonnair-Sergeant <a href="https://github.com/frenchy64/analyze">as an interface to the Compiler analyzer</a> <del>and then moved to be part of the <a href="https://github.com/clojure/tools.analyzer">CinC analyzer</a></del>.</p>
 
 <p>The CinC alternative is modularized in -at least three- different parts.</p>
 
