@@ -90,7 +90,7 @@
     </url>
     <url>
         <loc>http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application/</loc>
-        <lastmod>2013-04-20T18:18:20-03:00</lastmod>
+        <lastmod>2014-04-23T10:29:26-03:00</lastmod>
     </url>
     <url>
         <loc>http://guilespi.github.com/blog/2013/07/05/making-wealth-by-trusting-people/</loc>
@@ -104,19 +104,19 @@
         <loc>
             http://guilespi.github.com/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/
         </loc>
-        <lastmod>2013-11-28T13:41:57-02:00</lastmod>
+        <lastmod>2014-04-23T10:30:41-03:00</lastmod>
     </url>
     <url>
         <loc>http://guilespi.github.com/blog/2013/12/01/whats-so-great-about-reducers/</loc>
-        <lastmod>2013-12-01T14:08:04-02:00</lastmod>
+        <lastmod>2014-04-23T10:27:59-03:00</lastmod>
     </url>
     <url>
         <loc>http://guilespi.github.com/blog/2014/04/13/decompiling-clojure-i/</loc>
-        <lastmod>2014-04-14T16:32:02-03:00</lastmod>
+        <lastmod>2014-04-23T10:27:38-03:00</lastmod>
     </url>
     <url>
         <loc>http://guilespi.github.com/blog/2014/04/21/decompiling-clojure-ii/</loc>
-        <lastmod>2014-04-22T18:51:06-03:00</lastmod>
+        <lastmod>2014-04-23T10:26:24-03:00</lastmod>
     </url>
     <url>
         <loc>http://guilespi.github.com/about/</loc>
@@ -124,7 +124,7 @@
     </url>
     <url>
         <loc>http://guilespi.github.com/blog/archives/</loc>
-        <lastmod>2014-04-22T18:51:06-03:00</lastmod>
+        <lastmod>2014-04-23T10:30:41-03:00</lastmod>
     </url>
     <url>
         <loc>http://guilespi.github.com/clojure.xml</loc>
@@ -132,6 +132,6 @@
     </url>
     <url>
         <loc>http://guilespi.github.com/</loc>
-        <lastmod>2014-04-22T18:51:06-03:00</lastmod>
+        <lastmod>2014-04-23T10:30:41-03:00</lastmod>
     </url>
 </urlset>

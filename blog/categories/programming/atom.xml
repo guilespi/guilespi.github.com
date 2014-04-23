@@ -4,7 +4,7 @@
   <title><![CDATA[Category: Programming | Interrupted]]></title>
   <link href="http://guilespi.github.com/blog/categories/programming/atom.xml" rel="self"/>
   <link href="http://guilespi.github.com/"/>
-  <updated>2014-04-22T18:51:10-03:00</updated>
+  <updated>2014-04-23T10:31:08-03:00</updated>
   <id>http://guilespi.github.com/</id>
   <author>
     <name><![CDATA[Guillermo Winkler]]></name>
@@ -12,6 +12,47 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Real Life Clojure Application]]></title>
+    <link href="http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application/"/>
+    <updated>2013-04-20T17:56:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application</id>
+    <content type="html"><![CDATA[<p>When a language is going through its maturity process, there's always the need for sample code and applications to look at, design patterns,
+coding guidelines, best libraries, you name it, you usually get those looking at the source code of others.</p>
+
+<p>That is what really builds community, having a common language, besides the <em>language</em>.</p>
+
+<p>Clojure's been going through this phenomenon for the last years, as you see <a href="http://stackoverflow.com/questions/329221/medium-size-clojure-sample-application">in this question</a> from 2008 and <a href="http://stackoverflow.com/questions/3628958/good-clojure-code-examples">this question</a> still being answered in 2012.</p>
+
+<p>This year I made a real life full application in Clojure so I've spent some time deciding on many strategies,
+where to put which code, how to test, best libraries to use and what not.</p>
+
+<p>So I decided to put <a href="https://github.com/guilespi/notify-me">the source code</a> online, not only because I think it may help someone,
+but hopefully somebody will come up and help me improve what it's done in one way or another, it's certainly <em>far</em> from perfect.</p>
+
+<p>In case you wonder, it's an application for automatic call and sms dispatching.</p>
+
+<p><img class="center" src="/images/blog/notifyme.png" width="480" height="580" title="'Notify Me Blaster Application'" ></p>
+
+<p>Among other things, you'll find inside:</p>
+
+<ul>
+<li>Web development using <a href="https://github.com/ring-clojure/ring">ring</a>, <a href="https://github.com/weavejester/compojure">compojure</a> and <a href="https://github.com/weavejester/hiccup">hiccup</a>.</li>
+<li>Client side <em>almost</em> entirely done in <a href="https://github.com/clojure/clojurescript">clojurescript</a>.</li>
+<li>Authentication and authorization using <a href="https://github.com/cemerick/friend">friend</a>.</li>
+<li>Database access using both <a href="https://github.com/clojure/java.jdbc">jdbc</a> and <a href="https://github.com/korma/Korma">korma</a>.</li>
+<li>Async jobs using <a href="https://github.com/michaelklishin/quartzite">quartz</a> for call and sms dispatching.</li>
+<li>Unit tests using <a href="https://github.com/marick/Midje">midje</a>.</li>
+<li>Chart drawing using <a href="https://github.com/liebke/incanter">incanter</a>.</li>
+<li>Asterisk telephony integration using my own <a href="https://github.com/guilespi/clj-asterisk">clj-asterisk</a> bindings.</li>
+<li>Deploy configuration using <a href="https://github.com/pallet">pallet</a> <em>(not yet finished)</em>.</li>
+</ul>
+
+
+<p><em>If you like it say hi! I'm <a href="http://www.twitter.com/guilespi">guilespi</a></em></p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Can you make a native app using Phonegap?]]></title>
