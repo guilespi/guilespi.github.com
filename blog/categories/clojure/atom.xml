@@ -4,7 +4,7 @@
   <title><![CDATA[Category: Clojure | Interrupted]]></title>
   <link href="http://guilespi.github.com/blog/categories/clojure/atom.xml" rel="self"/>
   <link href="http://guilespi.github.com/"/>
-  <updated>2014-04-23T10:31:08-03:00</updated>
+  <updated>2014-04-27T23:59:10-03:00</updated>
   <id>http://guilespi.github.com/</id>
   <author>
     <name><![CDATA[Guillermo Winkler]]></name>
@@ -12,6 +12,360 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Decompiling Clojure III, Graph all the things]]></title>
+    <link href="http://guilespi.github.com/blog/2014/04/27/decompiling-clojure-iii/"/>
+    <updated>2014-04-27T23:15:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2014/04/27/decompiling-clojure-iii</id>
+    <content type="html"><![CDATA[<p>This is the third entry in the Decompiling Clojure series.</p>
+
+<p><a href="http://blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">In the first post</a> I showed what Clojure looks like in bytecode, and in <a href="http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/">the second post</a> I did a quick review of the Clojure compiler and its code generation strategies.</p>
+
+<p>In this post I'll go deeper in the decompiling process.</p>
+
+<h2>What is decompiling?</h2>
+
+<p>Decompilers do not usually reconstruct the original source code, since many information meant to be read by humans (for instance comments)
+is lost in the compilation process, where stuff is meant to be read only by machines, <code>JVM</code> bytecode in our case.</p>
+
+<p>So by decompiling I mean going from lower level bytecode, to some higher level code, it doesn't even need to be Clojure,
+we already know from the last post that Clojure compiler loses all macro information, so special heuristics will be needed when trying to reconstruct them.</p>
+
+<p>For instance, it's possible for <code>let</code> and <code>if</code> special forms, to be re-created using code signatures.(Think pattern matching applied to code graphs)</p>
+
+<h2>Decompiling goal</h2>
+
+<p>As I've said in my previous post:</p>
+
+<p><blockquote><p>What use do I have for a line based debugger with Clojure?</p><footer><strong>guilespi</strong> <cite><a href='http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/'>blog.guillermowinkler.com/blog/&hellip;</a></cite></footer></blockquote></p>
+
+<p>My goal when decompiling Clojure is not to re-create the original source code, but to re-create the <code>AST</code> that gave origin to the <code>JVM</code> bytecode I'm observing.</p>
+
+<p>Since I want to create a debugger that knows about s-expressions, I do need a tree representation from the bytecode that can be properly
+synchronized with the Clojure source code I'm debugging.</p>
+
+<p>So my decompiling goal is getting a higher level semantic tree from the <code>JVM</code> bytecode.</p>
+
+<h2>Decompiling phases</h2>
+
+<p>Much of the work I've done was using as guide the <a href="http://www.informatik.uni-trier.de/~ley/pers/hd/c/Cifuentes:Cristina#footer">many publications from Cristina Cifuentes</a>, and the great book <a href="http://www.amazon.com/gp/product/0444002162/">Flow Analysis of Computer Programs</a>,
+which I got an used copy from Amazon. So all the smart ideas belong to them, all mistakes and nonsense are mine.</p>
+
+<p><img class="center" src="/images/blog/flow-analysis-book.jpg" width="320" height="220" title="Flow Analysis of Computer Programs" alt="Flow Analysis of Computer Programs"></p>
+
+<p>I already said I want a reasonable <code>AST</code> from the bytecode, so decompilation process will be split in phases</p>
+
+<ol>
+<li>Wind the stack and build a statement list</li>
+<li>Create codeblocks and a graph representing control flow</li>
+<li>Detect loops and nested loops</li>
+<li>Structure conditionals</li>
+</ol>
+
+
+<p>If you want a decompiler that re-creates source code, you would add a fifth step called <em>Emit source code</em>.</p>
+
+<p>As you smart readers would have probably noticed by now, it has some things in common with the compiling process,
+only that we need to get to the <code>AST</code> from compiled bytecode instead of doing it from a source file,
+once you have the AST you can emit whatever you want, even <code>Basic</code>.</p>
+
+<h3>1. Wind the stack</h3>
+
+<p>Maybe I should have used a different name for this step, since stack unwinding is usually related with C++ exception handling, and refers to how
+objects allocated are destroyed when exiting the function and destroying the frame.</p>
+
+<p>But in the general case, stack unwind refers to what happens with the stack when a function is finished and the current frame needs to be cleared.</p>
+
+<p>And if we <a href="http://www.merriam-webster.com/dictionary/unwind">go to the dictionary</a> - pun intended -</p>
+
+<p><blockquote><p>to become uncoiled or disentangled</p><footer><strong>Merriam-Webster : Unwind</strong> <cite><a href='http://www.merriam-webster.com/dictionary/unwind'>www.merriam-webster.com/unwind/&hellip;</a></cite></footer></blockquote></p>
+
+<p>I'm happy to say we will coil the uncoiled stack into proper statements.</p>
+
+<p>As we saw <a href="http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/">in the second post of our series</a>, the JVM uses a stack based approach to parameter passing</p>
+
+<p>```
+f(a, b, c)</p>
+
+<p>=> compiles to</p>
+
+<p>push a
+push b
+push c
+call f</p>
+
+<p>```</p>
+
+<p>So our first step is about getting the stack back together.</p>
+
+<p>Some statements are going to be quite similar to what the Clojure compiler already recognizes, such as <code>IfExpr</code> representing an if conditional, but many statements at this stage won't have a direct mapping in Clojure, for instance the <code>AssignStatement</code> representing an assignment to a variable, does not exist in the Clojure compiler, and higher level constructs such as <code>LetFnExpr</code> or <code>MapExpr</code> won't be mapped at this stage of low-level bytecode.</p>
+
+<p>So a reduced list would look like:</p>
+
+<ul>
+<li>AssignStatatement</li>
+<li>IfStatement</li>
+<li>InvokeStatement</li>
+<li>ReturnStatement</li>
+<li>NewStatement</li>
+</ul>
+
+
+<p>So we're dealing with less typed expressions/statements, just a small set of generic control structures.</p>
+
+<p>One important thing when winding the stack is: in many cases statement compose, for instance an <code>InvokeStatement</code> result may be used directly from the stack into a subsequent <code>IfStatement</code>.</p>
+
+<p>Let me show you.</p>
+
+<p>Getting back to our previous example</p>
+
+<p>```clojure
+(defn test-if
+  []
+  (if (= (inc 1) 2)</p>
+
+<pre><code>8
+9))
+</code></pre>
+
+<p>```
+Decompiled as</p>
+
+<p>```
+public java.lang.Object invoke();</p>
+
+<pre><code>Code:
+</code></pre>
+
+<p>==></p>
+
+<pre><code>   0: lconst_1
+   1: invokestatic  #63                 // Method clojure/lang/Numbers.inc:(J)J
+   4: ldc2_w        #42                 // long 2l
+   7: lcmp
+   8: ifne          18
+</code></pre>
+
+<p>==></p>
+
+<pre><code>  11: getstatic     #49                 // Field const__4:Ljava/lang/Object;
+  14: goto          21
+  17: pop
+  18: getstatic     #53                 // Field const__5:Ljava/lang/Object;
+  21: areturn
+</code></pre>
+
+<p>```</p>
+
+<p>Lines <code>0</code> and <code>1</code> are responsible for the <code>(inc 1)</code> part of the code, decompiling to <code>clojure.lang.Numbers.inc(1)</code>, which result is directly used in line <code>7</code> which compares with the long value <code>2</code> pushed on line <code>4</code>.</p>
+
+<p>So our first decompiled statement on line <code>0</code> is an <code>IfStatement</code>, which contains the <code>InvokeStatement</code> <em>inside</em>.</p>
+
+<p><code>
+0:IF (2!=clojure.lang.Numbers.inc(1)) GOTO 11 ELSE GOTO 18
+11:RETURN 9
+18:RETURN 8
+</code></p>
+
+<p>When this step is finished all the low level concepts will be removed, and high level concepts were re-introduced, such as parameter passing.</p>
+
+<p>But we're still stuck with our damn Basic!</p>
+
+<h3>Codeblock Graph</h3>
+
+<p>A Codeblock is a sequence of statements with no branch statements in the middle, meaning execution starts at the first statement, and ends with the last one.</p>
+
+<p>The following is a control flow graph, with code blocks numbered from <code>B1</code> to <code>B15</code>.</p>
+
+<p><img class="center" src="/images/blog/codeblock-graph.png" width="580" height="380" title="Sample Control Flow Graph" alt="Sample Control Flow Graph"></p>
+
+<p>Note we're building a <strong>graph</strong> here, not a <strong>tree</strong>.</p>
+
+<p>A tree is a minimally connected graph, having only one path between any two vertices,
+when modeling control flow you can have <strong>many</strong> paths between two vertices,
+for instance in our example <code>B1-&gt;B2-&gt;B4-&gt;B5</code> and <code>B1-&gt;B5</code>.</p>
+
+<p>This is the first step of the control flow analysis phase,
+having identified the basic branching statements from the previous step,
+building the graph is straightforward.</p>
+
+<h3>Loop Detection</h3>
+
+<p>Loop detection is one of the most difficult tasks when writing a decompiler.</p>
+
+<p>Main reason is when you're reading bytecode or assembly, you're not entirely sure about the compiler used to generate that,
+you may be trying to decompile bytecode written by hand, which may never map to a <em>known</em> higher level construct.</p>
+
+<p>For instance, there are a few higher level constructs identified with loops, which usually take the following form:</p>
+
+<p><img class="center" src="/images/blog/proper-loops.png" width="380" height="280" title="Proper loops" alt="Proper loops"></p>
+
+<p>But then you may have a graph with the following <em>improper</em> looping structures:</p>
+
+<p><img class="center" src="/images/blog/improper-loops.png" width="380" height="280" title="Improper loops" alt="Improper loops"></p>
+
+<p>Improper loops ranging from multi-entry or multi-exit, something you can find on <code>goto</code> enabled languages, to parallel loops with a common header node, or entwined loops.</p>
+
+<p>In our case, we can assume all bytecode we're going to find is always created from a reasonable Clojure compiler,
+and we can safely guess <code>goto</code> support won't be approved by Rich Hickey any time soon.</p>
+
+<p>So, a loop needs to be defined in terms of the graph representation, which not only determines the extent of the loop but also the nesting of the different loops in the function being decompiled.</p>
+
+<p>The loop detection algorithms I used were taken directly from Cifuentes papers about decompiling, which in turn took the ideas from <a href="http://en.wikipedia.org/wiki/James_F._Allen">James F.Allen</a> and <a href="http://en.wikipedia.org/wiki/John_Cocke">John Cocke</a> of using <a href="http://en.wikipedia.org/wiki/Interval_(graph_theory)">graph interval theory</a> for flow analysis,
+ since it satisfies the necessary conditions for loops:</p>
+
+<ul>
+<li>One loop per interval</li>
+<li>A nesting order is provided by the derived sequence of graphs.</li>
+</ul>
+
+
+<p>Even if we don't have improper loops, we need to know which <code>IfStatements</code> correspond to a loop header before assuming it's indeed an <code>If</code>.</p>
+
+<p>So, what does a Clojure loop looks like?</p>
+
+<p>```clojure
+(defn test-loop
+  []
+  (loop [x 10]</p>
+
+<pre><code>(when (&gt; x 0)
+  (recur (dec x)))))
+</code></pre>
+
+<p>```</p>
+
+<p>Our first phase decompiler would see it as:</p>
+
+<p><code>
+0:x = 10
+4:IF (0&lt;=x) GOTO 10 ELSE GOTO 22
+10:x = clojure.lang.Numbers.dec(x)
+15:GOTO 4
+22:RETURN NULL
+</code></p>
+
+<p>Well, we had a <code>GOTO</code> after all... as you see a loop is just an <code>If</code> statement followed by a backlink, in this case solved with a <code>GOTO</code> branching statement.</p>
+
+<p>Now if I leave the debug comments from my decompiler, you'll see a couple extra things:</p>
+
+<p>```
+Loading:debugee.test$test_loop</p>
+
+<p>Block Start:0
+0:x = 10</p>
+
+<p>Block Start:4
+4:IF (0&lt;=x) GOTO 10 ELSE GOTO 22</p>
+
+<p>Block Start:10
+10:x = clojure.lang.Numbers.dec(x)
+15:GOTO 4</p>
+
+<p>Block Start:22
+22:RETURN NULL</p>
+
+<p>Found new loop header at:4
+Not belong to loop:22
+Loop closes on:10
+```</p>
+
+<ul>
+<li>Code blocks are identified</li>
+<li>Loop belonging nodes are identified</li>
+<li>Loop header and latch nodes are also identified</li>
+</ul>
+
+
+<h3>Structuring Conditionals</h3>
+
+<p>Conditionals refer to <code>if</code>, <code>when</code>, <code>case</code> and other conditionals that may be found in code, which are usually 1-way or 2-way conditioned branches,
+all of them have a common <em>end</em> node reached by all paths.</p>
+
+<p>Since Clojure <code>when</code> is a macro expanding to an <code>if</code>, it's just the 1-way conditional branch, if the <code>if</code> clause has an <code>else</code> part we're in the 2-way conditional branch, where the else part is taken before reaching the common follow node.</p>
+
+<p>The more difficult situation arises when trying to structure compound boolean conditions, as you see in the following picture:</p>
+
+<p><img class="center" src="/images/blog/compound-conditionals.png" width="580" height="380" title="Compound conditionals" alt="Compound conditionals"></p>
+
+<p>You should expect different <code>IfStatements</code> one behind the other, all being part of the same higher-level compound conditional which is compiled in a short-circuit fashion,
+with two chained if statements.</p>
+
+<p>With Clojure we have an additional problem, for instance the following example:</p>
+
+<p>```clojure
+(defn test-compound
+  []
+  (if (and (> 2 1) (= 0 0))</p>
+
+<pre><code>2
+1))
+</code></pre>
+
+<p>```</p>
+
+<p>Decompiles to the following <code>Basic</code>:</p>
+
+<p><code>
+0:and__3941__auto__1754 = clojure.lang.Numbers.gt(2, 1)
+8:IF and__3941__auto__1754==0 GOTO 12 ELSE GOTO 21
+12:IF clojure.lang.Util.equiv(0, 0)==0 GOTO 25 ELSE GOTO 32
+21:IF and__3941__auto__1754==0 GOTO 25 ELSE GOTO 32
+25:RETURN 2
+32:RETURN 1
+</code></p>
+
+<p>Wait a minute!!</p>
+
+<p>We should be seeing only two <code>IfStatements</code> there, one for each part of the compound conditional, but there are three, what's going on?</p>
+
+<p>As you see on line <code>21</code> the same condition of line <code>8</code> is being tested again, which we already know it's false, why someone would do that?</p>
+
+<p>It turns out it has to do with <code>and</code> being implemented as a macro, so if we look what's the actual Clojure code being emitted the bytecode makes sense</p>
+
+<p>```clojure
+(clojure.pprint/pprint
+  (macroexpand-all '(if (and (> 2 1) (= 0 0)) 2 1)))</p>
+
+<pre><code>(if
+ (let*
+   [and__3941__auto__ (&gt; 2 1)]
+   (if and__3941__auto__ (= 0 0) and__3941__auto__))
+ 2
+ 1)
+</code></pre>
+
+<p>```</p>
+
+<p>The <code>and__3941__auto__</code> variable which is the result of the first condition is being checked twice,
+I guess this is the reason the temporary variable exists in the first place,
+to avoid computation of the boolean expression twice and just checking for the result of it again.</p>
+
+<p>If case the compiler analyzed the <code>and</code> as part of the <code>if</code> it could have emitted the result directly instead of
+using a temporary variable and that nasty double check.</p>
+
+<h2>The Clojure case</h2>
+
+<p>Many of the different strategies explored previously apply if you want to decompile just about anything from bytecode (or machine language).</p>
+
+<p>Since in our case we already know we're decompiling Clojure, there are a lot of special cases we know we will <em>never</em> encounter.</p>
+
+<p>Targeting our decompiler to only one language makes things easier, since while we're not only supporting only one compiler,
+but we know we'll never encounter manually generated bytecode,
+unless your using an agent or custom loader that has patched the bytecode, of course.</p>
+
+<h2>What's next</h2>
+
+<p>In the next post I will show you two things, how to synchronize the decompiled bytecode tree with Clojure source code,
+and how to patch the debuggee on runtime to use our s-expression references using <a href="https://commons.apache.org/proper/commons-bcel/">BCEL</a>.</p>
+
+<p>Much of the code to accomplish this was developed while understanding the problem, so it's not open sourced yet, I'm planning to move stuff around and make it public,
+but if you want to look at the current mess just ping me, I'll send it to you(you'll need to un-rust your graph mangling skills tough).</p>
+
+<p>Meanwhile, <a href="http://www.twitter.com/guilespi">I'm guilespi</a> on Twitter.</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Decompiling Clojure II, The Compiler]]></title>
@@ -1035,47 +1389,6 @@ Clojure using <a href="https://github.com/livingsocial/clj-scribe/">clj-scribe</
 <p>Give it a try and let me know what you think.</p>
 
 <p><em>I'm <a href="http://www.twitter.com/guilespi">guilespi</a> at Twitter</em></p>
-]]></content>
-  </entry>
-  
-  <entry>
-    <title type="html"><![CDATA[Real Life Clojure Application]]></title>
-    <link href="http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application/"/>
-    <updated>2013-04-20T17:56:00-03:00</updated>
-    <id>http://guilespi.github.com/blog/2013/04/20/real-life-clojure-application</id>
-    <content type="html"><![CDATA[<p>When a language is going through its maturity process, there's always the need for sample code and applications to look at, design patterns,
-coding guidelines, best libraries, you name it, you usually get those looking at the source code of others.</p>
-
-<p>That is what really builds community, having a common language, besides the <em>language</em>.</p>
-
-<p>Clojure's been going through this phenomenon for the last years, as you see <a href="http://stackoverflow.com/questions/329221/medium-size-clojure-sample-application">in this question</a> from 2008 and <a href="http://stackoverflow.com/questions/3628958/good-clojure-code-examples">this question</a> still being answered in 2012.</p>
-
-<p>This year I made a real life full application in Clojure so I've spent some time deciding on many strategies,
-where to put which code, how to test, best libraries to use and what not.</p>
-
-<p>So I decided to put <a href="https://github.com/guilespi/notify-me">the source code</a> online, not only because I think it may help someone,
-but hopefully somebody will come up and help me improve what it's done in one way or another, it's certainly <em>far</em> from perfect.</p>
-
-<p>In case you wonder, it's an application for automatic call and sms dispatching.</p>
-
-<p><img class="center" src="/images/blog/notifyme.png" width="480" height="580" title="'Notify Me Blaster Application'" ></p>
-
-<p>Among other things, you'll find inside:</p>
-
-<ul>
-<li>Web development using <a href="https://github.com/ring-clojure/ring">ring</a>, <a href="https://github.com/weavejester/compojure">compojure</a> and <a href="https://github.com/weavejester/hiccup">hiccup</a>.</li>
-<li>Client side <em>almost</em> entirely done in <a href="https://github.com/clojure/clojurescript">clojurescript</a>.</li>
-<li>Authentication and authorization using <a href="https://github.com/cemerick/friend">friend</a>.</li>
-<li>Database access using both <a href="https://github.com/clojure/java.jdbc">jdbc</a> and <a href="https://github.com/korma/Korma">korma</a>.</li>
-<li>Async jobs using <a href="https://github.com/michaelklishin/quartzite">quartz</a> for call and sms dispatching.</li>
-<li>Unit tests using <a href="https://github.com/marick/Midje">midje</a>.</li>
-<li>Chart drawing using <a href="https://github.com/liebke/incanter">incanter</a>.</li>
-<li>Asterisk telephony integration using my own <a href="https://github.com/guilespi/clj-asterisk">clj-asterisk</a> bindings.</li>
-<li>Deploy configuration using <a href="https://github.com/pallet">pallet</a> <em>(not yet finished)</em>.</li>
-</ul>
-
-
-<p><em>If you like it say hi! I'm <a href="http://www.twitter.com/guilespi">guilespi</a></em></p>
 ]]></content>
   </entry>
   

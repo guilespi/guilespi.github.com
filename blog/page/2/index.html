@@ -9,8 +9,7 @@
   <meta name="author" content="Guillermo Winkler">
 
   
-  <meta name="description" content="The coxcomb chart was first used by Florence Nightingale to persuade Queen Victoria about improving
-conditions in the military hospitals during the &hellip;">
+  <meta name="description" content="There are some really nice alternatives out there if you want your application to be able to make a call or send a SMS. But the truth is sometimes &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -88,6 +87,410 @@ conditions in the military hospitals during the &hellip;">
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2013/01/29/build-yourself-a-dialer-with-clojure-and-asterisk/">Build Yourself a Dialer With Clojure and Asterisk</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2013-01-29T17:05:00-02:00" pubdate data-updated="true">Jan 29<span>th</span>, 2013</time>
+        
+         | <a href="/blog/2013/01/29/build-yourself-a-dialer-with-clojure-and-asterisk/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>There are some really <a href="http://www.twilio.com">nice</a> <a href="http://plivo.com/">alternatives</a> out there if you want your application to be able to make a call or send a SMS.</p>
+
+<p>But the truth is sometimes you don&#8217;t want to rely on <code>the cloud</code> for your latency-sensitive communications, you already have communications infrastructure
+you want to reuse, or you have such a volume of calls to make that it&#8217;s cheaper for you to roll your own solution.</p>
+
+<p>So I will show you a DIY guide to roll your own dialer using Clojure and <a href="http://www.asterisk.org/">Asterisk</a>, the self proclaimed PBX &amp; Telephony Toolkit.</p>
+
+<p><strong> What is a Dialer </strong></p>
+
+<p>If you ever received a spam call from someone trying to sell you something, it was probably made by an automated dialer.
+The purpose is to reach the most possible people in the least time, optimizing resources.</p>
+
+<p>Sometimes it&#8217;s someone selling Viagra, but hopefully it&#8217;s used for higher purposes such as massive notification of upcoming emergencies.</p>
+
+<p><strong> Integrating with Asterisk </strong></p>
+
+<p>Asterisk has a lot if integration alternatives, custom dial-plans, AGI scripting, outgoing call spooling, or you can write your own low-level C module,
+each strategy serves its purpose.</p>
+
+<p>For this scenario I&#8217;ve decided to show you an integration with Asterisk using the <a href="http://www.voip-info.org/wiki/view/Asterisk+manager+API">Asterisk Manager API</a>,
+which allows for remote command execution and event-handling.</p>
+
+<p>I&#8217;ve written a binding for Clojure called <a href="https://github.com/guilespi/clj-asterisk">clj-asterisk</a> to sit on top of the low-level text based protocol.</p>
+
+<p><strong> Making a Call </strong></p>
+
+<p>The <code>clj-asterisk</code> binding map against the Asterisk API is straightforward, so checking against the <a href="http://www.voip-info.org/wiki/view/Asterisk+Manager+API+Action+Originate">Originate Action</a> which is the
+one we need to create an outgoing call.</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>Action: Originate
+</span><span class='line'>Channel: SIP/101test
+</span><span class='line'>Context: default
+</span><span class='line'>Exten: 8135551212
+</span><span class='line'>Priority: 1
+</span><span class='line'>Callerid: 3125551212
+</span><span class='line'>Timeout: 30000
+</span><span class='line'>Variable: var1=23|var2=24|var3=25
+</span><span class='line'>ActionID: ABC45678901234567890</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The corresponding <code>clj-asterisk</code> invocation is:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">ns </span><span class="nv">call.test</span>
+</span><span class='line'>  <span class="p">(</span><span class="ss">:require</span> <span class="p">[</span><span class="nv">clj-asterisk.manager</span> <span class="ss">:as</span> <span class="nv">manager</span><span class="p">]</span>
+</span><span class='line'>               <span class="p">[</span><span class="nv">clj-asterisk.events</span> <span class="ss">:as</span> <span class="nv">events</span><span class="p">]))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">manager/action</span> <span class="ss">:Originate</span> <span class="p">{</span><span class="ss">:Channel</span> <span class="s">&quot;SIP/101test&quot;</span>
+</span><span class='line'>                            <span class="ss">:Context</span> <span class="s">&quot;default&quot;</span>
+</span><span class='line'>                            <span class="ss">:Exten</span> <span class="mi">8135551212</span>
+</span><span class='line'>                            <span class="ss">:Priority</span> <span class="mi">1</span>
+</span><span class='line'>                            <span class="ss">:Timeout</span> <span class="mi">30000</span>
+</span><span class='line'>                            <span class="ss">:CallerID</span> <span class="mi">3125551212</span>
+</span><span class='line'>                            <span class="ss">:Variables</span> <span class="p">[</span><span class="nv">var1=23</span>
+</span><span class='line'>                                        <span class="nv">var2=24</span>
+</span><span class='line'>                                        <span class="nv">var3=25</span><span class="p">]})</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>ActionID</code> attribute is not specified since it&#8217;s internally handled by the <code>clj-asterisk</code> library in order to track async responses from Asterisk.</p>
+
+<p><strong> Receiving events </strong></p>
+
+<p>For most telephony related actions blocking is not desirable, since most of the time the PBX is handling a conversation and waiting for
+something to happen, using a blocking scheme is far from the best. You need a strategy to wait for events that tell you when something
+you may be interested in, happens.</p>
+
+<p>In this case we will be interested in the <code>Hangup</code> event in order to know when the call has ended, so the dialing port is free,
+so we can issue a new call. If you&#8217;re interested in the complete list of events, <a href="http://www.voip-info.org/wiki/view/asterisk+manager+events">it&#8217;s available on the Asterisk Wiki</a></p>
+
+<p>To receive an event using <code>clj-asterisk</code> you only need to declare the method with the event name you need to handle:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">ns </span><span class="nv">call.test</span>
+</span><span class='line'>  <span class="p">(</span><span class="ss">:require</span> <span class="p">[</span><span class="nv">clj-asterisk.manager</span> <span class="ss">:as</span> <span class="nv">manager</span><span class="p">]</span>
+</span><span class='line'>            <span class="p">[</span><span class="nv">clj-asterisk.events</span> <span class="ss">:as</span> <span class="nv">events</span><span class="p">]))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="kd">defmethod </span><span class="nv">events/handle-event</span> <span class="s">&quot;Hangup&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">event</span> <span class="nv">context</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nb">println </span><span class="nv">event</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The method passes as parameter the received event and the connection context where the event happened.</p>
+
+<p><strong> The Main Loop </strong></p>
+
+<p>In order to have a proper dialer you will need a main-loop, which life-fulfillment-purpose is:</p>
+
+<ul>
+<li>Decide on which contacts are to be called</li>
+<li>How many ports are free so how many I can dial now</li>
+<li>Handle retrying and error rules</li>
+<li>Dispatching the calls</li>
+</ul>
+
+
+<p>I&#8217;m assuming you have some data storage to retrieve the contacts to be dialed and will share those details in a later post,
+I will focus now only in the dialing strategy.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">process</span>
+</span><span class='line'>  <span class="s">&quot;Loops until all contacts for a notification are reached or finally</span>
+</span><span class='line'><span class="s">   cancelled&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">notification</span> <span class="nv">context</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">total-ports</span> <span class="p">(</span><span class="nf">get-available-ports</span> <span class="nv">notification</span><span class="p">)</span>
+</span><span class='line'>        <span class="nv">contact-list</span> <span class="p">(</span><span class="nf">model/expand-rcpt</span> <span class="nv">notification</span><span class="p">)]</span>
+</span><span class='line'>    <span class="p">(</span><span class="k">loop </span><span class="p">[</span><span class="nv">remaining</span> <span class="nv">contact-list</span> <span class="nv">pending-contacts</span> <span class="p">[]]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">or </span><span class="p">(</span><span class="nb">seq </span><span class="nv">remaining</span><span class="p">)</span>
+</span><span class='line'>           <span class="p">(</span><span class="nb">seq </span><span class="nv">pending-contacts</span><span class="p">))</span>
+</span><span class='line'>             <span class="p">(</span><span class="nf">do</span>
+</span><span class='line'>               <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">pending</span> <span class="p">(</span><span class="nb">filter </span><span class="p">(</span><span class="nb">comp not </span><span class="nv">realized?</span><span class="p">)</span> <span class="nv">pending-contacts</span><span class="p">)</span>
+</span><span class='line'>                     <span class="nv">finished</span> <span class="p">(</span><span class="nb">filter </span><span class="nv">realized?</span> <span class="nv">pending-contacts</span><span class="p">)</span>
+</span><span class='line'>                     <span class="nv">failed</span> <span class="p">(</span><span class="nf">filter</span>
+</span><span class='line'>                             <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">r</span><span class="p">]</span> <span class="p">(</span><span class="nb">not </span><span class="p">(</span><span class="nb">contains? </span><span class="o">#</span><span class="p">{</span><span class="s">&quot;CONNECTED&quot;</span> <span class="s">&quot;CANCELLED&quot;</span><span class="p">}</span> <span class="p">(</span><span class="ss">:status</span> <span class="err">@</span><span class="nv">r</span><span class="p">))))</span>
+</span><span class='line'>                             <span class="nv">finished</span><span class="p">)</span>
+</span><span class='line'>                     <span class="nv">free-ports</span> <span class="p">(</span><span class="nb">- </span><span class="nv">total-ports</span> <span class="p">(</span><span class="nb">count </span><span class="nv">pending</span><span class="p">))</span>
+</span><span class='line'>                     <span class="nv">contacts</span> <span class="p">(</span><span class="nb">take </span><span class="nv">free-ports</span> <span class="nv">remaining</span><span class="p">)</span>
+</span><span class='line'>                     <span class="nv">dialing</span> <span class="p">(</span><span class="nf">dispatch-calls</span> <span class="nv">context</span> <span class="nv">notification</span> <span class="nv">contacts</span><span class="p">)]</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nb">println </span><span class="p">(</span><span class="nf">format</span> <span class="s">&quot;Pending %s Finished %s Failed %s Free Ports %s Dispatched %s&quot;</span>
+</span><span class='line'>                                  <span class="p">(</span><span class="nb">count </span><span class="nv">pending</span><span class="p">)</span> <span class="p">(</span><span class="nb">count </span><span class="nv">finished</span><span class="p">)</span> <span class="p">(</span><span class="nb">count </span><span class="nv">failed</span><span class="p">)</span> <span class="nv">free-ports</span>
+</span><span class='line'>                                  <span class="p">(</span><span class="nb">count </span><span class="nv">dialing</span><span class="p">)))</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nf">Thread/sleep</span> <span class="mi">100</span><span class="p">)</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nf">recur</span> <span class="p">(</span><span class="nb">concat </span><span class="p">(</span><span class="nb">drop </span><span class="nv">free-ports</span> <span class="nv">remaining</span><span class="p">)</span> <span class="p">(</span><span class="nb">map </span><span class="ss">:contact</span> <span class="nv">failed</span><span class="p">))</span>
+</span><span class='line'>                        <span class="p">(</span><span class="nb">concat </span><span class="nv">pending</span> <span class="nv">dialing</span><span class="p">)))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Lets go piece by piece&#8230;</p>
+
+<p>You wanna know how many ports are available to dial, for instance you may have only 10 outgoing lines to be used.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">total-ports</span> <span class="p">(</span><span class="nf">get-available-ports</span> <span class="nv">notification</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>You wanna know the recipients to be reached.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">contact-list</span> <span class="p">(</span><span class="nf">model/expand-rcpt</span> <span class="nv">notification</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Then you wanna know the status of the contacts you&#8217;re already dialing and waiting for an answer or for the call to finish.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="k">let </span><span class="p">[</span><span class="nv">pending</span> <span class="p">(</span><span class="nb">filter </span><span class="p">(</span><span class="nb">comp not </span><span class="nv">realized?</span><span class="p">)</span> <span class="nv">pending-contacts</span><span class="p">)</span>
+</span><span class='line'>     <span class="nv">finished</span> <span class="p">(</span><span class="nb">filter </span><span class="nv">realized?</span> <span class="nv">pending-contacts</span><span class="p">)</span>
+</span><span class='line'>     <span class="nv">failed</span> <span class="p">(</span><span class="nf">filter</span>
+</span><span class='line'>                  <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">r</span><span class="p">]</span> <span class="p">(</span><span class="nb">not </span><span class="p">(</span><span class="nb">contains? </span><span class="o">#</span><span class="p">{</span><span class="s">&quot;CONNECTED&quot;</span> <span class="s">&quot;CANCELLED&quot;</span><span class="p">}</span> <span class="p">(</span><span class="ss">:status</span> <span class="err">@</span><span class="nv">r</span><span class="p">))))</span>
+</span><span class='line'>                  <span class="nv">finished</span><span class="p">)</span>
+</span><span class='line'>     <span class="nv">free-ports</span> <span class="p">(</span><span class="nb">- </span><span class="nv">total-ports</span> <span class="p">(</span><span class="nb">count </span><span class="nv">pending</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Here pending-contacts is a list of <a href="http://clojuredocs.org/clojure_core/clojure.core/future">futures</a>, the contacts being currently dialed. Since we don&#8217;t wanna block waiting for the answer the <code>realized?</code>
+function is used in order to count how many of them are finished and filter them. If the finish status is not <code>CONNECTED</code> or <code>CANCELLED</code>
+we assume the contact has failed and we need to issue a retry for those, typically the <code>BUSY</code> and <code>NO ANSWER</code> statuses.</p>
+
+<p>Then, given the total available ports minus the already being dialed contacts, a new batch of contacts is dialed</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">contacts</span> <span class="p">(</span><span class="nb">take </span><span class="nv">free-ports</span> <span class="nv">remaining</span><span class="p">)</span>
+</span><span class='line'><span class="nv">dialing</span> <span class="p">(</span><span class="nf">dispatch-calls</span> <span class="nv">context</span> <span class="nv">notification</span> <span class="nv">contacts</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>dispatch-calls</code> function is pretty straightforward, it just async calls each contact of the list.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">dispatch-calls</span>
+</span><span class='line'>  <span class="s">&quot;Returns the list of futures of each call thread (one p/contact)&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">context</span> <span class="nv">notification</span> <span class="nv">contacts</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nf">future</span> <span class="p">(</span><span class="nf">call</span> <span class="nv">context</span> <span class="nv">notification</span> <span class="nv">%</span><span class="p">))</span> <span class="nv">contacts</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Finally the call function issues the request against the Asterisk PBX and saves the result for further tracking or analytics.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">call</span>
+</span><span class='line'>  <span class="s">&quot;Call a contact and wait till the call ends.</span>
+</span><span class='line'><span class="s">   Function returns the hangup event or nil if timedout&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">context</span> <span class="nv">notification</span> <span class="nv">contact</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">manager/with-connection</span> <span class="nv">context</span>
+</span><span class='line'>    <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">trunk</span> <span class="p">(</span><span class="nf">model/get-trunk</span> <span class="nv">notification</span><span class="p">)</span>
+</span><span class='line'>          <span class="nv">call-id</span> <span class="p">(</span><span class="nf">.toString</span> <span class="p">(</span><span class="nf">java.util.UUID/randomUUID</span><span class="p">))</span>
+</span><span class='line'>          <span class="nv">prom</span> <span class="p">(</span><span class="nf">manager/set-user-data!</span> <span class="nv">call-id</span> <span class="p">(</span><span class="nf">promise</span><span class="p">))</span>
+</span><span class='line'>          <span class="nv">response</span> <span class="p">(</span><span class="nf">manager/action</span> <span class="ss">:Originate</span>
+</span><span class='line'>                                   <span class="p">{</span><span class="ss">:Channel</span> <span class="p">(</span><span class="nf">format</span> <span class="s">&quot;%s/%s/%s&quot;</span>
+</span><span class='line'>                                                     <span class="p">(</span><span class="ss">:technology</span> <span class="nv">trunk</span><span class="p">)</span>
+</span><span class='line'>                                                     <span class="p">(</span><span class="ss">:number</span> <span class="nv">trunk</span><span class="p">)</span>
+</span><span class='line'>                                                     <span class="p">(</span><span class="ss">:address</span> <span class="nv">contact</span><span class="p">))</span>
+</span><span class='line'>                                    <span class="ss">:Context</span> <span class="p">(</span><span class="ss">:context</span> <span class="nv">trunk</span><span class="p">)</span>
+</span><span class='line'>                                    <span class="ss">:Exten</span> <span class="p">(</span><span class="ss">:extension</span> <span class="nv">trunk</span><span class="p">)</span>
+</span><span class='line'>                                    <span class="ss">:Priority</span> <span class="p">(</span><span class="ss">:priority</span> <span class="nv">trunk</span><span class="p">)</span>
+</span><span class='line'>                                    <span class="ss">:Timeout</span> <span class="mi">60000</span>
+</span><span class='line'>                                    <span class="ss">:CallerID</span> <span class="p">(</span><span class="ss">:callerid</span> <span class="nv">trunk</span><span class="p">)</span>
+</span><span class='line'>                                    <span class="ss">:Variables</span> <span class="p">[(</span><span class="nf">format</span> <span class="s">&quot;MESSAGE=%s&quot;</span> <span class="p">(</span><span class="ss">:message</span> <span class="nv">notification</span><span class="p">))</span>
+</span><span class='line'>                                                <span class="p">(</span><span class="nf">format</span> <span class="s">&quot;CALLID=%s&quot;</span> <span class="nv">call-id</span><span class="p">)]})]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">model/save-result</span> <span class="nv">notification</span>
+</span><span class='line'>                         <span class="nv">contact</span>
+</span><span class='line'>                         <span class="p">(</span><span class="nb">deref </span><span class="nv">prom</span> <span class="mi">200000</span> <span class="p">{</span><span class="ss">:error</span> <span class="err">:</span><span class="ss">:timeout</span><span class="p">})))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The tricky part here is that it&#8217;s impossible to know before-hand the call-id Asterisk is going to use for our newly created call,
+so we need a way to <em>mark</em> our call and relate to it later when an event is received, we do that using the call variable <code>CALLID</code>
+which is a <code>guid</code> created for each new call.</p>
+
+<p>Our call creating function will wait on a <code>promise</code> until the call ends, something we will <code>deliver</code> in the Hangup event as shown here:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="c1">;; Signal the end of the call to the waiting promise in order to</span>
+</span><span class='line'><span class="c1">;; release the channel</span>
+</span><span class='line'><span class="p">(</span><span class="kd">defmethod </span><span class="nv">events/handle-event</span> <span class="s">&quot;Hangup&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">event</span> <span class="nv">context</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nb">println </span><span class="nv">event</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">manager/with-connection</span> <span class="nv">context</span>
+</span><span class='line'>    <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">unique-id</span> <span class="p">(</span><span class="ss">:Uniqueid</span> <span class="nv">event</span><span class="p">)</span>
+</span><span class='line'>          <span class="nv">call-id</span> <span class="p">(</span><span class="nf">manager/get-user-data</span> <span class="nv">unique-id</span><span class="p">)</span>
+</span><span class='line'>          <span class="nv">prom</span> <span class="p">(</span><span class="nf">manager/get-user-data</span> <span class="nv">call-id</span><span class="p">)]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">println </span><span class="p">(</span><span class="nf">format</span> <span class="s">&quot;Hanging up call %s with unique id %s&quot;</span> <span class="nv">call-id</span> <span class="nv">unique-id</span><span class="p">))</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">deliver</span> <span class="nv">prom</span> <span class="nv">event</span><span class="p">)</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">manager/remove-user-data!</span> <span class="nv">call-id</span><span class="p">)</span> <span class="c1">;;FIX: this should be done</span>
+</span><span class='line'>      <span class="c1">;;on the waiting side or promise may get lost</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">manager/remove-user-data!</span> <span class="nv">unique-id</span><span class="p">))))</span>
+</span><span class='line'>
+</span><span class='line'><span class="c1">;; When CALLID is set, relate it to the call unique-id</span>
+</span><span class='line'><span class="c1">;; to be used later in hangup detection</span>
+</span><span class='line'><span class="c1">;;</span>
+</span><span class='line'><span class="c1">;; The context has the following info inside:</span>
+</span><span class='line'><span class="c1">;;   callid =&gt; promise</span>
+</span><span class='line'><span class="c1">;;   Uniqueid =&gt; callid</span>
+</span><span class='line'><span class="c1">;;</span>
+</span><span class='line'><span class="c1">;; so it&#39;s possible to deliver a response to someone waiting</span>
+</span><span class='line'><span class="c1">;; on the callid promise</span>
+</span><span class='line'><span class="p">(</span><span class="kd">defmethod </span><span class="nv">events/handle-event</span> <span class="s">&quot;VarSet&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">event</span> <span class="nv">context</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nb">when </span><span class="p">(</span><span class="nb">= </span><span class="p">(</span><span class="ss">:Variable</span> <span class="nv">event</span><span class="p">)</span> <span class="s">&quot;CALLID&quot;</span><span class="p">)</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">manager/with-connection</span> <span class="nv">context</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">println </span><span class="p">(</span><span class="nf">format</span> <span class="s">&quot;Setting data %s match %s&quot;</span> <span class="p">(</span><span class="ss">:Uniqueid</span> <span class="nv">event</span><span class="p">)</span> <span class="p">(</span><span class="ss">:Value</span> <span class="nv">event</span><span class="p">)))</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">manager/set-user-data!</span> <span class="p">(</span><span class="ss">:Uniqueid</span> <span class="nv">event</span><span class="p">)</span> <span class="p">(</span><span class="ss">:Value</span> <span class="nv">event</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>It seems more convoluted than what it actually is, when the <code>CALLID</code> variable is set we receive an event that allows the mapping between call-id and
+Asterisk UniqueId to be done. Then when the <code>Hangup</code> occurs we can find the promise to be delivered and let the <code>call</code> function happily end.</p>
+
+<p>Keep tuned for part II, when I will publish the data model and the complete running Dialer.</p>
+
+<p><a href="https://gist.github.com/4666926">Here</a> is the gist with the code of the current post.</p>
+
+<p><em>While you wait, you can follow me on <a href="http://www.twitter.com/guilespi">Twitter</a>!</em></p>
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -1543,85 +1946,6 @@ There&#8217;s a lot of waterfallists thinking they&#8217;re agile just because t
 
     </article>
   
-  
-    <article>
-      
-  <header>
-    
-      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
-        <h1 class="entry-title"><a href="/blog/2012/09/01/the-world-of-warcraft-of-the-linkedinz/">The World of Warcraft of the Linkedinz</a></h1>
-      
-    
-    
-      <p class="meta">
-        
-
-
-
-
-
-
-
-
-  
-
-
-<time datetime="2012-09-01T01:01:00-03:00" pubdate data-updated="true">Sep 1<span>st</span>, 2012</time>
-        
-         | <a href="/blog/2012/09/01/the-world-of-warcraft-of-the-linkedinz/#disqus_thread">Comments</a>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><p>At <a href="http://www.inconcertcc.com">inConcert</a> we don&#8217;t have any ranks, we ain&#8217;t the fucking army you know?</p>
-
-<p>We all are <a href="http://www.nobullshit.com.uy/">R&amp;D staff</a>. Of course we have different skills, some people is better at some things than others,
-and each person has his own inclination towards something, whether it&#8217;s math, machine learning or user interface design.</p>
-
-<p>But there&#8217;s no rank.</p>
-
-<p>There&#8217;s even job descriptions, whether you&#8217;re a designer or an engineer,
-it&#8217;s based on the idea proposed by <a href="http://www.jrothman.com/blog/mpd/Creatingontarget.pdf">Johanna Rothman</a>, and it states:</p>
-
-<ul>
-<li>What are you supposed to do</li>
-<li>What skills you need</li>
-<li>What are your deliverables</li>
-</ul>
-
-
-<p>It serves as a compass when you start to understand what&#8217;s important in your position (no sole lickers please)</p>
-
-<p>But there&#8217;s no rank.</p>
-
-<p>You can be awesome and delivering solutions across the full stack or you can be struggling with a small subset of the product or technology we happen to be using. (And it will affect how much money you make)</p>
-
-<p>But there&#8217;s no rank.</p>
-
-<p>And this is important, because these are times of disease, and we have a disease in town I want to warn you about; it&#8217;s called the Badge Hunting disease.</p>
-
-<p>Have you heard about the case of the CEO of his one person company? We used to call that a freelancer!
-These badge collecting trolls it&#8217;s like the World of Warcraft of the Linkedinz, have you seen them?
-That guy updating his profile every single week; his code passes a test? <em>Test Passing Manager</em>. Helped a colleague? <em>Team Leader</em>.
-Draw some mockups? <em>Product Manager</em>. Get some flyers printed and mailed? <em>Event co-organizer</em>. Made a website? <em>Entrepreneur</em>.</p>
-
-<p>Are you trying to impress your mother? These guys are more worried about the looks than about getting something done, and you should avoid them like the plague.</p>
-
-<p>I&#8217;m not advocating against having specific roles when a company grows into a stage of needing them, hey, I even think some badges you can earn, but if you deserve it I don&#8217;t think you really care about them.</p>
-
-<p>Show me what you&#8217;ve built, all the rest is bullshit.</p>
-
-<p><img class="center" src="/images/blog/wowbadge.jpg" width="280" height="380" title="'Badge collected during the battle of the linkedinz in the year 2280'" >
-And that&#8217;s why we have no ranks, if you want a badge go play some WoW.</p>
-</div>
-  
-  
-
-
-    </article>
-  
   <div class="pagination">
     
       <a class="prev" href="/blog/page/3/">&larr; Older</a>
@@ -1639,6 +1963,10 @@ And that&#8217;s why we have no ranks, if you want a badge go play some WoW.</p>
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2014/04/27/decompiling-clojure-iii/">Decompiling Clojure III, Graph all the things</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
       </li>
     
@@ -1652,10 +1980,6 @@ And that&#8217;s why we have no ranks, if you want a badge go play some WoW.</p>
     
       <li class="post">
         <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen&#8217;s club?</a>
       </li>
     
   </ul>

@@ -9,7 +9,7 @@
   <meta name="author" content="Guillermo Winkler">
 
   
-  <meta name="description" content="This is the second post in the Decompiling Clojure series, in the first post I showed what Clojure looks like in bytecode. For this entry, I&#8217;ll &hellip;">
+  <meta name="description" content="This is the third entry in the Decompiling Clojure series. In the first post I showed what Clojure looks like in bytecode, and in the second post I &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -87,6 +87,449 @@
     <div id="content">
       <div class="blog-index">
   
+  
+  
+    <article>
+      
+  <header>
+    
+      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
+        <h1 class="entry-title"><a href="/blog/2014/04/27/decompiling-clojure-iii/">Decompiling Clojure III, Graph All the Things</a></h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-04-27T23:15:00-03:00" pubdate data-updated="true">Apr 27<span>th</span>, 2014</time>
+        
+         | <a href="/blog/2014/04/27/decompiling-clojure-iii/#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p>This is the third entry in the Decompiling Clojure series.</p>
+
+<p><a href="http://blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">In the first post</a> I showed what Clojure looks like in bytecode, and in <a href="http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/">the second post</a> I did a quick review of the Clojure compiler and its code generation strategies.</p>
+
+<p>In this post I&#8217;ll go deeper in the decompiling process.</p>
+
+<h2>What is decompiling?</h2>
+
+<p>Decompilers do not usually reconstruct the original source code, since many information meant to be read by humans (for instance comments)
+is lost in the compilation process, where stuff is meant to be read only by machines, <code>JVM</code> bytecode in our case.</p>
+
+<p>So by decompiling I mean going from lower level bytecode, to some higher level code, it doesn&#8217;t even need to be Clojure,
+we already know from the last post that Clojure compiler loses all macro information, so special heuristics will be needed when trying to reconstruct them.</p>
+
+<p>For instance, it&#8217;s possible for <code>let</code> and <code>if</code> special forms, to be re-created using code signatures.(Think pattern matching applied to code graphs)</p>
+
+<h2>Decompiling goal</h2>
+
+<p>As I&#8217;ve said in my previous post:</p>
+
+<blockquote><p>What use do I have for a line based debugger with Clojure?</p><footer><strong>guilespi</strong> <cite><a href='http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/'>blog.guillermowinkler.com/blog/&hellip;</a></cite></footer></blockquote>
+
+
+<p>My goal when decompiling Clojure is not to re-create the original source code, but to re-create the <code>AST</code> that gave origin to the <code>JVM</code> bytecode I&#8217;m observing.</p>
+
+<p>Since I want to create a debugger that knows about s-expressions, I do need a tree representation from the bytecode that can be properly
+synchronized with the Clojure source code I&#8217;m debugging.</p>
+
+<p>So my decompiling goal is getting a higher level semantic tree from the <code>JVM</code> bytecode.</p>
+
+<h2>Decompiling phases</h2>
+
+<p>Much of the work I&#8217;ve done was using as guide the <a href="http://www.informatik.uni-trier.de/~ley/pers/hd/c/Cifuentes:Cristina#footer">many publications from Cristina Cifuentes</a>, and the great book <a href="http://www.amazon.com/gp/product/0444002162/">Flow Analysis of Computer Programs</a>,
+which I got an used copy from Amazon. So all the smart ideas belong to them, all mistakes and nonsense are mine.</p>
+
+<p><img class="center" src="/images/blog/flow-analysis-book.jpg" width="320" height="220" title="Flow Analysis of Computer Programs" alt="Flow Analysis of Computer Programs"></p>
+
+<p>I already said I want a reasonable <code>AST</code> from the bytecode, so decompilation process will be split in phases</p>
+
+<ol>
+<li>Wind the stack and build a statement list</li>
+<li>Create codeblocks and a graph representing control flow</li>
+<li>Detect loops and nested loops</li>
+<li>Structure conditionals</li>
+</ol>
+
+
+<p>If you want a decompiler that re-creates source code, you would add a fifth step called <em>Emit source code</em>.</p>
+
+<p>As you smart readers would have probably noticed by now, it has some things in common with the compiling process,
+only that we need to get to the <code>AST</code> from compiled bytecode instead of doing it from a source file,
+once you have the AST you can emit whatever you want, even <code>Basic</code>.</p>
+
+<h3>1. Wind the stack</h3>
+
+<p>Maybe I should have used a different name for this step, since stack unwinding is usually related with C++ exception handling, and refers to how
+objects allocated are destroyed when exiting the function and destroying the frame.</p>
+
+<p>But in the general case, stack unwind refers to what happens with the stack when a function is finished and the current frame needs to be cleared.</p>
+
+<p>And if we <a href="http://www.merriam-webster.com/dictionary/unwind">go to the dictionary</a> - pun intended -</p>
+
+<blockquote><p>to become uncoiled or disentangled</p><footer><strong>Merriam-Webster : Unwind</strong> <cite><a href='http://www.merriam-webster.com/dictionary/unwind'>www.merriam-webster.com/unwind/&hellip;</a></cite></footer></blockquote>
+
+
+<p>I&#8217;m happy to say we will coil the uncoiled stack into proper statements.</p>
+
+<p>As we saw <a href="http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/">in the second post of our series</a>, the JVM uses a stack based approach to parameter passing</p>
+
+<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class=''><span class='line'>f(a, b, c)
+</span><span class='line'>
+</span><span class='line'>=&gt; compiles to
+</span><span class='line'>
+</span><span class='line'>push a
+</span><span class='line'>push b
+</span><span class='line'>push c
+</span><span class='line'>call f
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>So our first step is about getting the stack back together.</p>
+
+<p>Some statements are going to be quite similar to what the Clojure compiler already recognizes, such as <code>IfExpr</code> representing an if conditional, but many statements at this stage won&#8217;t have a direct mapping in Clojure, for instance the <code>AssignStatement</code> representing an assignment to a variable, does not exist in the Clojure compiler, and higher level constructs such as <code>LetFnExpr</code> or <code>MapExpr</code> won&#8217;t be mapped at this stage of low-level bytecode.</p>
+
+<p>So a reduced list would look like:</p>
+
+<ul>
+<li>AssignStatatement</li>
+<li>IfStatement</li>
+<li>InvokeStatement</li>
+<li>ReturnStatement</li>
+<li>NewStatement</li>
+</ul>
+
+
+<p>So we&#8217;re dealing with less typed expressions/statements, just a small set of generic control structures.</p>
+
+<p>One important thing when winding the stack is: in many cases statement compose, for instance an <code>InvokeStatement</code> result may be used directly from the stack into a subsequent <code>IfStatement</code>.</p>
+
+<p>Let me show you.</p>
+
+<p>Getting back to our previous example</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">test-if</span>
+</span><span class='line'>  <span class="p">[]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">= </span><span class="p">(</span><span class="nb">inc </span><span class="mi">1</span><span class="p">)</span> <span class="mi">2</span><span class="p">)</span>
+</span><span class='line'>    <span class="mi">8</span>
+</span><span class='line'>    <span class="mi">9</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Decompiled as</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">public</span> <span class="nv">java.lang.Object</span> <span class="nv">invoke</span><span class="p">()</span><span class="c1">;</span>
+</span><span class='line'>    <span class="nv">Code</span><span class="err">:</span>
+</span><span class='line'><span class="nv">==&gt;</span>
+</span><span class='line'>       <span class="mi">0</span><span class="err">:</span> <span class="nv">lconst_1</span>
+</span><span class='line'>       <span class="mi">1</span><span class="err">:</span> <span class="nv">invokestatic</span>  <span class="o">#</span><span class="mi">63</span>                 <span class="nv">//</span> <span class="nv">Method</span> <span class="nv">clojure/lang/Numbers.inc</span><span class="err">:</span><span class="p">(</span><span class="nf">J</span><span class="p">)</span><span class="nv">J</span>
+</span><span class='line'>       <span class="mi">4</span><span class="err">:</span> <span class="nv">ldc2_w</span>        <span class="o">#</span><span class="mi">42</span>                 <span class="nv">//</span> <span class="nb">long </span><span class="mi">2</span><span class="nv">l</span>
+</span><span class='line'>       <span class="mi">7</span><span class="err">:</span> <span class="nv">lcmp</span>
+</span><span class='line'>       <span class="mi">8</span><span class="err">:</span> <span class="nv">ifne</span>          <span class="mi">18</span>
+</span><span class='line'><span class="nv">==&gt;</span>
+</span><span class='line'>      <span class="mi">11</span><span class="err">:</span> <span class="nv">getstatic</span>     <span class="o">#</span><span class="mi">49</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__4</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">14</span><span class="err">:</span> <span class="nv">goto</span>          <span class="mi">21</span>
+</span><span class='line'>      <span class="mi">17</span><span class="err">:</span> <span class="nv">pop</span>
+</span><span class='line'>      <span class="mi">18</span><span class="err">:</span> <span class="nv">getstatic</span>     <span class="o">#</span><span class="mi">53</span>                 <span class="nv">//</span> <span class="nv">Field</span> <span class="nv">const__5</span><span class="ss">:Ljava/lang/Object</span><span class="c1">;</span>
+</span><span class='line'>      <span class="mi">21</span><span class="err">:</span> <span class="nv">areturn</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Lines <code>0</code> and <code>1</code> are responsible for the <code>(inc 1)</code> part of the code, decompiling to <code>clojure.lang.Numbers.inc(1)</code>, which result is directly used in line <code>7</code> which compares with the long value <code>2</code> pushed on line <code>4</code>.</p>
+
+<p>So our first decompiled statement on line <code>0</code> is an <code>IfStatement</code>, which contains the <code>InvokeStatement</code> <em>inside</em>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="mi">0</span><span class="ss">:IF</span> <span class="p">(</span><span class="mi">2</span><span class="nv">!=clojure.lang.Numbers.inc</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span> <span class="nv">GOTO</span> <span class="mi">11</span> <span class="nv">ELSE</span> <span class="nv">GOTO</span> <span class="mi">18</span>
+</span><span class='line'><span class="mi">11</span><span class="ss">:RETURN</span> <span class="mi">9</span>
+</span><span class='line'><span class="mi">18</span><span class="ss">:RETURN</span> <span class="mi">8</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>When this step is finished all the low level concepts will be removed, and high level concepts were re-introduced, such as parameter passing.</p>
+
+<p>But we&#8217;re still stuck with our damn Basic!</p>
+
+<h3>Codeblock Graph</h3>
+
+<p>A Codeblock is a sequence of statements with no branch statements in the middle, meaning execution starts at the first statement, and ends with the last one.</p>
+
+<p>The following is a control flow graph, with code blocks numbered from <code>B1</code> to <code>B15</code>.</p>
+
+<p><img class="center" src="/images/blog/codeblock-graph.png" width="580" height="380" title="Sample Control Flow Graph" alt="Sample Control Flow Graph"></p>
+
+<p>Note we&#8217;re building a <strong>graph</strong> here, not a <strong>tree</strong>.</p>
+
+<p>A tree is a minimally connected graph, having only one path between any two vertices,
+when modeling control flow you can have <strong>many</strong> paths between two vertices,
+for instance in our example <code>B1-&gt;B2-&gt;B4-&gt;B5</code> and <code>B1-&gt;B5</code>.</p>
+
+<p>This is the first step of the control flow analysis phase,
+having identified the basic branching statements from the previous step,
+building the graph is straightforward.</p>
+
+<h3>Loop Detection</h3>
+
+<p>Loop detection is one of the most difficult tasks when writing a decompiler.</p>
+
+<p>Main reason is when you&#8217;re reading bytecode or assembly, you&#8217;re not entirely sure about the compiler used to generate that,
+you may be trying to decompile bytecode written by hand, which may never map to a <em>known</em> higher level construct.</p>
+
+<p>For instance, there are a few higher level constructs identified with loops, which usually take the following form:</p>
+
+<p><img class="center" src="/images/blog/proper-loops.png" width="380" height="280" title="Proper loops" alt="Proper loops"></p>
+
+<p>But then you may have a graph with the following <em>improper</em> looping structures:</p>
+
+<p><img class="center" src="/images/blog/improper-loops.png" width="380" height="280" title="Improper loops" alt="Improper loops"></p>
+
+<p>Improper loops ranging from multi-entry or multi-exit, something you can find on <code>goto</code> enabled languages, to parallel loops with a common header node, or entwined loops.</p>
+
+<p>In our case, we can assume all bytecode we&#8217;re going to find is always created from a reasonable Clojure compiler,
+and we can safely guess <code>goto</code> support won&#8217;t be approved by Rich Hickey any time soon.</p>
+
+<p>So, a loop needs to be defined in terms of the graph representation, which not only determines the extent of the loop but also the nesting of the different loops in the function being decompiled.</p>
+
+<p>The loop detection algorithms I used were taken directly from Cifuentes papers about decompiling, which in turn took the ideas from <a href="http://en.wikipedia.org/wiki/James_F._Allen">James F.Allen</a> and <a href="http://en.wikipedia.org/wiki/John_Cocke">John Cocke</a> of using <a href="http://en.wikipedia.org/wiki/Interval_(graph_theory)">graph interval theory</a> for flow analysis,
+ since it satisfies the necessary conditions for loops:</p>
+
+<ul>
+<li>One loop per interval</li>
+<li>A nesting order is provided by the derived sequence of graphs.</li>
+</ul>
+
+
+<p>Even if we don&#8217;t have improper loops, we need to know which <code>IfStatements</code> correspond to a loop header before assuming it&#8217;s indeed an <code>If</code>.</p>
+
+<p>So, what does a Clojure loop looks like?</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">test-loop</span>
+</span><span class='line'>  <span class="p">[]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">loop </span><span class="p">[</span><span class="nv">x</span> <span class="mi">10</span><span class="p">]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nb">when </span><span class="p">(</span><span class="nb">&gt; </span><span class="nv">x</span> <span class="mi">0</span><span class="p">)</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">recur</span> <span class="p">(</span><span class="nb">dec </span><span class="nv">x</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Our first phase decompiler would see it as:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="mi">0</span><span class="ss">:x</span> <span class="nb">= </span><span class="mi">10</span>
+</span><span class='line'><span class="mi">4</span><span class="ss">:IF</span> <span class="p">(</span><span class="mi">0</span><span class="nv">&lt;=x</span><span class="p">)</span> <span class="nv">GOTO</span> <span class="mi">10</span> <span class="nv">ELSE</span> <span class="nv">GOTO</span> <span class="mi">22</span>
+</span><span class='line'><span class="mi">10</span><span class="ss">:x</span> <span class="nb">= </span><span class="nv">clojure.lang.Numbers.dec</span><span class="p">(</span><span class="nf">x</span><span class="p">)</span>
+</span><span class='line'><span class="mi">15</span><span class="ss">:GOTO</span> <span class="mi">4</span>
+</span><span class='line'><span class="mi">22</span><span class="ss">:RETURN</span> <span class="nv">NULL</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Well, we had a <code>GOTO</code> after all&#8230; as you see a loop is just an <code>If</code> statement followed by a backlink, in this case solved with a <code>GOTO</code> branching statement.</p>
+
+<p>Now if I leave the debug comments from my decompiler, you&#8217;ll see a couple extra things:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">Loading</span><span class="ss">:debugee.test$test_loop</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">Block</span> <span class="nv">Start</span><span class="ss">:0</span>
+</span><span class='line'><span class="mi">0</span><span class="ss">:x</span> <span class="nb">= </span><span class="mi">10</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">Block</span> <span class="nv">Start</span><span class="ss">:4</span>
+</span><span class='line'><span class="mi">4</span><span class="ss">:IF</span> <span class="p">(</span><span class="mi">0</span><span class="nv">&lt;=x</span><span class="p">)</span> <span class="nv">GOTO</span> <span class="mi">10</span> <span class="nv">ELSE</span> <span class="nv">GOTO</span> <span class="mi">22</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">Block</span> <span class="nv">Start</span><span class="ss">:10</span>
+</span><span class='line'><span class="mi">10</span><span class="ss">:x</span> <span class="nb">= </span><span class="nv">clojure.lang.Numbers.dec</span><span class="p">(</span><span class="nf">x</span><span class="p">)</span>
+</span><span class='line'><span class="mi">15</span><span class="ss">:GOTO</span> <span class="mi">4</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">Block</span> <span class="nv">Start</span><span class="ss">:22</span>
+</span><span class='line'><span class="mi">22</span><span class="ss">:RETURN</span> <span class="nv">NULL</span>
+</span><span class='line'>
+</span><span class='line'><span class="nv">Found</span> <span class="k">new loop </span><span class="nv">header</span> <span class="nv">at</span><span class="ss">:4</span>
+</span><span class='line'><span class="nv">Not</span> <span class="nv">belong</span> <span class="nv">to</span> <span class="nv">loop</span><span class="ss">:22</span>
+</span><span class='line'><span class="nv">Loop</span> <span class="nv">closes</span> <span class="nv">on</span><span class="ss">:10</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<ul>
+<li>Code blocks are identified</li>
+<li>Loop belonging nodes are identified</li>
+<li>Loop header and latch nodes are also identified</li>
+</ul>
+
+
+<h3>Structuring Conditionals</h3>
+
+<p>Conditionals refer to <code>if</code>, <code>when</code>, <code>case</code> and other conditionals that may be found in code, which are usually 1-way or 2-way conditioned branches,
+all of them have a common <em>end</em> node reached by all paths.</p>
+
+<p>Since Clojure <code>when</code> is a macro expanding to an <code>if</code>, it&#8217;s just the 1-way conditional branch, if the <code>if</code> clause has an <code>else</code> part we&#8217;re in the 2-way conditional branch, where the else part is taken before reaching the common follow node.</p>
+
+<p>The more difficult situation arises when trying to structure compound boolean conditions, as you see in the following picture:</p>
+
+<p><img class="center" src="/images/blog/compound-conditionals.png" width="580" height="380" title="Compound conditionals" alt="Compound conditionals"></p>
+
+<p>You should expect different <code>IfStatements</code> one behind the other, all being part of the same higher-level compound conditional which is compiled in a short-circuit fashion,
+with two chained if statements.</p>
+
+<p>With Clojure we have an additional problem, for instance the following example:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">test-compound</span>
+</span><span class='line'>  <span class="p">[]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">and </span><span class="p">(</span><span class="nb">&gt; </span><span class="mi">2</span> <span class="mi">1</span><span class="p">)</span> <span class="p">(</span><span class="nb">= </span><span class="mi">0</span> <span class="mi">0</span><span class="p">))</span>
+</span><span class='line'>    <span class="mi">2</span>
+</span><span class='line'>    <span class="mi">1</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Decompiles to the following <code>Basic</code>:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="mi">0</span><span class="ss">:and__3941__auto__1754</span> <span class="nb">= </span><span class="nv">clojure.lang.Numbers.gt</span><span class="p">(</span><span class="mi">2</span>, <span class="mi">1</span><span class="p">)</span>
+</span><span class='line'><span class="mi">8</span><span class="ss">:IF</span> <span class="nv">and__3941__auto__1754==0</span> <span class="nv">GOTO</span> <span class="mi">12</span> <span class="nv">ELSE</span> <span class="nv">GOTO</span> <span class="mi">21</span>
+</span><span class='line'><span class="mi">12</span><span class="ss">:IF</span> <span class="nv">clojure.lang.Util.equiv</span><span class="p">(</span><span class="mi">0</span>, <span class="mi">0</span><span class="p">)</span><span class="nv">==0</span> <span class="nv">GOTO</span> <span class="mi">25</span> <span class="nv">ELSE</span> <span class="nv">GOTO</span> <span class="mi">32</span>
+</span><span class='line'><span class="mi">21</span><span class="ss">:IF</span> <span class="nv">and__3941__auto__1754==0</span> <span class="nv">GOTO</span> <span class="mi">25</span> <span class="nv">ELSE</span> <span class="nv">GOTO</span> <span class="mi">32</span>
+</span><span class='line'><span class="mi">25</span><span class="ss">:RETURN</span> <span class="mi">2</span>
+</span><span class='line'><span class="mi">32</span><span class="ss">:RETURN</span> <span class="mi">1</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Wait a minute!!</p>
+
+<p>We should be seeing only two <code>IfStatements</code> there, one for each part of the compound conditional, but there are three, what&#8217;s going on?</p>
+
+<p>As you see on line <code>21</code> the same condition of line <code>8</code> is being tested again, which we already know it&#8217;s false, why someone would do that?</p>
+
+<p>It turns out it has to do with <code>and</code> being implemented as a macro, so if we look what&#8217;s the actual Clojure code being emitted the bytecode makes sense</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">clojure.pprint/pprint</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">macroexpand-all</span> <span class="o">&#39;</span><span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">and </span><span class="p">(</span><span class="nb">&gt; </span><span class="mi">2</span> <span class="mi">1</span><span class="p">)</span> <span class="p">(</span><span class="nb">= </span><span class="mi">0</span> <span class="mi">0</span><span class="p">))</span> <span class="mi">2</span> <span class="mi">1</span><span class="p">)))</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">if</span>
+</span><span class='line'>     <span class="p">(</span><span class="nf">let*</span>
+</span><span class='line'>       <span class="p">[</span><span class="nv">and__3941__auto__</span> <span class="p">(</span><span class="nb">&gt; </span><span class="mi">2</span> <span class="mi">1</span><span class="p">)]</span>
+</span><span class='line'>       <span class="p">(</span><span class="k">if </span><span class="nv">and__3941__auto__</span> <span class="p">(</span><span class="nb">= </span><span class="mi">0</span> <span class="mi">0</span><span class="p">)</span> <span class="nv">and__3941__auto__</span><span class="p">))</span>
+</span><span class='line'>     <span class="mi">2</span>
+</span><span class='line'>     <span class="mi">1</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>and__3941__auto__</code> variable which is the result of the first condition is being checked twice,
+I guess this is the reason the temporary variable exists in the first place,
+to avoid computation of the boolean expression twice and just checking for the result of it again.</p>
+
+<p>If case the compiler analyzed the <code>and</code> as part of the <code>if</code> it could have emitted the result directly instead of
+using a temporary variable and that nasty double check.</p>
+
+<h2>The Clojure case</h2>
+
+<p>Many of the different strategies explored previously apply if you want to decompile just about anything from bytecode (or machine language).</p>
+
+<p>Since in our case we already know we&#8217;re decompiling Clojure, there are a lot of special cases we know we will <em>never</em> encounter.</p>
+
+<p>Targeting our decompiler to only one language makes things easier, since while we&#8217;re not only supporting only one compiler,
+but we know we&#8217;ll never encounter manually generated bytecode,
+unless your using an agent or custom loader that has patched the bytecode, of course.</p>
+
+<h2>What&#8217;s next</h2>
+
+<p>In the next post I will show you two things, how to synchronize the decompiled bytecode tree with Clojure source code,
+and how to patch the debuggee on runtime to use our s-expression references using <a href="https://commons.apache.org/proper/commons-bcel/">BCEL</a>.</p>
+
+<p>Much of the code to accomplish this was developed while understanding the problem, so it&#8217;s not open sourced yet, I&#8217;m planning to move stuff around and make it public,
+but if you want to look at the current mess just ping me, I&#8217;ll send it to you(you&#8217;ll need to un-rust your graph mangling skills tough).</p>
+
+<p>Meanwhile, <a href="http://www.twitter.com/guilespi">I&#8217;m guilespi</a> on Twitter.</p>
+</div>
+  
+  
+
+
+    </article>
   
   
     <article>
@@ -2215,410 +2658,6 @@ latency and usability. Using the Phonegap plugins to avoid it will only go so fa
 
     </article>
   
-  
-    <article>
-      
-  <header>
-    
-      <!-- Now we're back to normal posts. Note the links used under href in both headers.-->
-        <h1 class="entry-title"><a href="/blog/2013/01/29/build-yourself-a-dialer-with-clojure-and-asterisk/">Build Yourself a Dialer With Clojure and Asterisk</a></h1>
-      
-    
-    
-      <p class="meta">
-        
-
-
-
-
-
-
-
-
-  
-
-
-<time datetime="2013-01-29T17:05:00-02:00" pubdate data-updated="true">Jan 29<span>th</span>, 2013</time>
-        
-         | <a href="/blog/2013/01/29/build-yourself-a-dialer-with-clojure-and-asterisk/#disqus_thread">Comments</a>
-        
-      </p>
-    
-  </header>
-
-
-  <div class="entry-content"><p>There are some really <a href="http://www.twilio.com">nice</a> <a href="http://plivo.com/">alternatives</a> out there if you want your application to be able to make a call or send a SMS.</p>
-
-<p>But the truth is sometimes you don&#8217;t want to rely on <code>the cloud</code> for your latency-sensitive communications, you already have communications infrastructure
-you want to reuse, or you have such a volume of calls to make that it&#8217;s cheaper for you to roll your own solution.</p>
-
-<p>So I will show you a DIY guide to roll your own dialer using Clojure and <a href="http://www.asterisk.org/">Asterisk</a>, the self proclaimed PBX &amp; Telephony Toolkit.</p>
-
-<p><strong> What is a Dialer </strong></p>
-
-<p>If you ever received a spam call from someone trying to sell you something, it was probably made by an automated dialer.
-The purpose is to reach the most possible people in the least time, optimizing resources.</p>
-
-<p>Sometimes it&#8217;s someone selling Viagra, but hopefully it&#8217;s used for higher purposes such as massive notification of upcoming emergencies.</p>
-
-<p><strong> Integrating with Asterisk </strong></p>
-
-<p>Asterisk has a lot if integration alternatives, custom dial-plans, AGI scripting, outgoing call spooling, or you can write your own low-level C module,
-each strategy serves its purpose.</p>
-
-<p>For this scenario I&#8217;ve decided to show you an integration with Asterisk using the <a href="http://www.voip-info.org/wiki/view/Asterisk+manager+API">Asterisk Manager API</a>,
-which allows for remote command execution and event-handling.</p>
-
-<p>I&#8217;ve written a binding for Clojure called <a href="https://github.com/guilespi/clj-asterisk">clj-asterisk</a> to sit on top of the low-level text based protocol.</p>
-
-<p><strong> Making a Call </strong></p>
-
-<p>The <code>clj-asterisk</code> binding map against the Asterisk API is straightforward, so checking against the <a href="http://www.voip-info.org/wiki/view/Asterisk+Manager+API+Action+Originate">Originate Action</a> which is the
-one we need to create an outgoing call.</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>Action: Originate
-</span><span class='line'>Channel: SIP/101test
-</span><span class='line'>Context: default
-</span><span class='line'>Exten: 8135551212
-</span><span class='line'>Priority: 1
-</span><span class='line'>Callerid: 3125551212
-</span><span class='line'>Timeout: 30000
-</span><span class='line'>Variable: var1=23|var2=24|var3=25
-</span><span class='line'>ActionID: ABC45678901234567890</span></code></pre></td></tr></table></div></figure>
-
-
-<p>The corresponding <code>clj-asterisk</code> invocation is:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-<span class='line-number'>12</span>
-<span class='line-number'>13</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">ns </span><span class="nv">call.test</span>
-</span><span class='line'>  <span class="p">(</span><span class="ss">:require</span> <span class="p">[</span><span class="nv">clj-asterisk.manager</span> <span class="ss">:as</span> <span class="nv">manager</span><span class="p">]</span>
-</span><span class='line'>               <span class="p">[</span><span class="nv">clj-asterisk.events</span> <span class="ss">:as</span> <span class="nv">events</span><span class="p">]))</span>
-</span><span class='line'>
-</span><span class='line'><span class="p">(</span><span class="nf">manager/action</span> <span class="ss">:Originate</span> <span class="p">{</span><span class="ss">:Channel</span> <span class="s">&quot;SIP/101test&quot;</span>
-</span><span class='line'>                            <span class="ss">:Context</span> <span class="s">&quot;default&quot;</span>
-</span><span class='line'>                            <span class="ss">:Exten</span> <span class="mi">8135551212</span>
-</span><span class='line'>                            <span class="ss">:Priority</span> <span class="mi">1</span>
-</span><span class='line'>                            <span class="ss">:Timeout</span> <span class="mi">30000</span>
-</span><span class='line'>                            <span class="ss">:CallerID</span> <span class="mi">3125551212</span>
-</span><span class='line'>                            <span class="ss">:Variables</span> <span class="p">[</span><span class="nv">var1=23</span>
-</span><span class='line'>                                        <span class="nv">var2=24</span>
-</span><span class='line'>                                        <span class="nv">var3=25</span><span class="p">]})</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>The <code>ActionID</code> attribute is not specified since it&#8217;s internally handled by the <code>clj-asterisk</code> library in order to track async responses from Asterisk.</p>
-
-<p><strong> Receiving events </strong></p>
-
-<p>For most telephony related actions blocking is not desirable, since most of the time the PBX is handling a conversation and waiting for
-something to happen, using a blocking scheme is far from the best. You need a strategy to wait for events that tell you when something
-you may be interested in, happens.</p>
-
-<p>In this case we will be interested in the <code>Hangup</code> event in order to know when the call has ended, so the dialing port is free,
-so we can issue a new call. If you&#8217;re interested in the complete list of events, <a href="http://www.voip-info.org/wiki/view/asterisk+manager+events">it&#8217;s available on the Asterisk Wiki</a></p>
-
-<p>To receive an event using <code>clj-asterisk</code> you only need to declare the method with the event name you need to handle:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">ns </span><span class="nv">call.test</span>
-</span><span class='line'>  <span class="p">(</span><span class="ss">:require</span> <span class="p">[</span><span class="nv">clj-asterisk.manager</span> <span class="ss">:as</span> <span class="nv">manager</span><span class="p">]</span>
-</span><span class='line'>            <span class="p">[</span><span class="nv">clj-asterisk.events</span> <span class="ss">:as</span> <span class="nv">events</span><span class="p">]))</span>
-</span><span class='line'>
-</span><span class='line'><span class="p">(</span><span class="kd">defmethod </span><span class="nv">events/handle-event</span> <span class="s">&quot;Hangup&quot;</span>
-</span><span class='line'>  <span class="p">[</span><span class="nv">event</span> <span class="nv">context</span><span class="p">]</span>
-</span><span class='line'>  <span class="p">(</span><span class="nb">println </span><span class="nv">event</span><span class="p">))</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>The method passes as parameter the received event and the connection context where the event happened.</p>
-
-<p><strong> The Main Loop </strong></p>
-
-<p>In order to have a proper dialer you will need a main-loop, which life-fulfillment-purpose is:</p>
-
-<ul>
-<li>Decide on which contacts are to be called</li>
-<li>How many ports are free so how many I can dial now</li>
-<li>Handle retrying and error rules</li>
-<li>Dispatching the calls</li>
-</ul>
-
-
-<p>I&#8217;m assuming you have some data storage to retrieve the contacts to be dialed and will share those details in a later post,
-I will focus now only in the dialing strategy.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-<span class='line-number'>12</span>
-<span class='line-number'>13</span>
-<span class='line-number'>14</span>
-<span class='line-number'>15</span>
-<span class='line-number'>16</span>
-<span class='line-number'>17</span>
-<span class='line-number'>18</span>
-<span class='line-number'>19</span>
-<span class='line-number'>20</span>
-<span class='line-number'>21</span>
-<span class='line-number'>22</span>
-<span class='line-number'>23</span>
-<span class='line-number'>24</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">process</span>
-</span><span class='line'>  <span class="s">&quot;Loops until all contacts for a notification are reached or finally</span>
-</span><span class='line'><span class="s">   cancelled&quot;</span>
-</span><span class='line'>  <span class="p">[</span><span class="nv">notification</span> <span class="nv">context</span><span class="p">]</span>
-</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">total-ports</span> <span class="p">(</span><span class="nf">get-available-ports</span> <span class="nv">notification</span><span class="p">)</span>
-</span><span class='line'>        <span class="nv">contact-list</span> <span class="p">(</span><span class="nf">model/expand-rcpt</span> <span class="nv">notification</span><span class="p">)]</span>
-</span><span class='line'>    <span class="p">(</span><span class="k">loop </span><span class="p">[</span><span class="nv">remaining</span> <span class="nv">contact-list</span> <span class="nv">pending-contacts</span> <span class="p">[]]</span>
-</span><span class='line'>      <span class="p">(</span><span class="nb">or </span><span class="p">(</span><span class="nb">seq </span><span class="nv">remaining</span><span class="p">)</span>
-</span><span class='line'>           <span class="p">(</span><span class="nb">seq </span><span class="nv">pending-contacts</span><span class="p">))</span>
-</span><span class='line'>             <span class="p">(</span><span class="nf">do</span>
-</span><span class='line'>               <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">pending</span> <span class="p">(</span><span class="nb">filter </span><span class="p">(</span><span class="nb">comp not </span><span class="nv">realized?</span><span class="p">)</span> <span class="nv">pending-contacts</span><span class="p">)</span>
-</span><span class='line'>                     <span class="nv">finished</span> <span class="p">(</span><span class="nb">filter </span><span class="nv">realized?</span> <span class="nv">pending-contacts</span><span class="p">)</span>
-</span><span class='line'>                     <span class="nv">failed</span> <span class="p">(</span><span class="nf">filter</span>
-</span><span class='line'>                             <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">r</span><span class="p">]</span> <span class="p">(</span><span class="nb">not </span><span class="p">(</span><span class="nb">contains? </span><span class="o">#</span><span class="p">{</span><span class="s">&quot;CONNECTED&quot;</span> <span class="s">&quot;CANCELLED&quot;</span><span class="p">}</span> <span class="p">(</span><span class="ss">:status</span> <span class="err">@</span><span class="nv">r</span><span class="p">))))</span>
-</span><span class='line'>                             <span class="nv">finished</span><span class="p">)</span>
-</span><span class='line'>                     <span class="nv">free-ports</span> <span class="p">(</span><span class="nb">- </span><span class="nv">total-ports</span> <span class="p">(</span><span class="nb">count </span><span class="nv">pending</span><span class="p">))</span>
-</span><span class='line'>                     <span class="nv">contacts</span> <span class="p">(</span><span class="nb">take </span><span class="nv">free-ports</span> <span class="nv">remaining</span><span class="p">)</span>
-</span><span class='line'>                     <span class="nv">dialing</span> <span class="p">(</span><span class="nf">dispatch-calls</span> <span class="nv">context</span> <span class="nv">notification</span> <span class="nv">contacts</span><span class="p">)]</span>
-</span><span class='line'>                 <span class="p">(</span><span class="nb">println </span><span class="p">(</span><span class="nf">format</span> <span class="s">&quot;Pending %s Finished %s Failed %s Free Ports %s Dispatched %s&quot;</span>
-</span><span class='line'>                                  <span class="p">(</span><span class="nb">count </span><span class="nv">pending</span><span class="p">)</span> <span class="p">(</span><span class="nb">count </span><span class="nv">finished</span><span class="p">)</span> <span class="p">(</span><span class="nb">count </span><span class="nv">failed</span><span class="p">)</span> <span class="nv">free-ports</span>
-</span><span class='line'>                                  <span class="p">(</span><span class="nb">count </span><span class="nv">dialing</span><span class="p">)))</span>
-</span><span class='line'>                 <span class="p">(</span><span class="nf">Thread/sleep</span> <span class="mi">100</span><span class="p">)</span>
-</span><span class='line'>                 <span class="p">(</span><span class="nf">recur</span> <span class="p">(</span><span class="nb">concat </span><span class="p">(</span><span class="nb">drop </span><span class="nv">free-ports</span> <span class="nv">remaining</span><span class="p">)</span> <span class="p">(</span><span class="nb">map </span><span class="ss">:contact</span> <span class="nv">failed</span><span class="p">))</span>
-</span><span class='line'>                        <span class="p">(</span><span class="nb">concat </span><span class="nv">pending</span> <span class="nv">dialing</span><span class="p">)))))))</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Lets go piece by piece&#8230;</p>
-
-<p>You wanna know how many ports are available to dial, for instance you may have only 10 outgoing lines to be used.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">total-ports</span> <span class="p">(</span><span class="nf">get-available-ports</span> <span class="nv">notification</span><span class="p">)</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>You wanna know the recipients to be reached.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">contact-list</span> <span class="p">(</span><span class="nf">model/expand-rcpt</span> <span class="nv">notification</span><span class="p">)</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Then you wanna know the status of the contacts you&#8217;re already dialing and waiting for an answer or for the call to finish.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="k">let </span><span class="p">[</span><span class="nv">pending</span> <span class="p">(</span><span class="nb">filter </span><span class="p">(</span><span class="nb">comp not </span><span class="nv">realized?</span><span class="p">)</span> <span class="nv">pending-contacts</span><span class="p">)</span>
-</span><span class='line'>     <span class="nv">finished</span> <span class="p">(</span><span class="nb">filter </span><span class="nv">realized?</span> <span class="nv">pending-contacts</span><span class="p">)</span>
-</span><span class='line'>     <span class="nv">failed</span> <span class="p">(</span><span class="nf">filter</span>
-</span><span class='line'>                  <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">r</span><span class="p">]</span> <span class="p">(</span><span class="nb">not </span><span class="p">(</span><span class="nb">contains? </span><span class="o">#</span><span class="p">{</span><span class="s">&quot;CONNECTED&quot;</span> <span class="s">&quot;CANCELLED&quot;</span><span class="p">}</span> <span class="p">(</span><span class="ss">:status</span> <span class="err">@</span><span class="nv">r</span><span class="p">))))</span>
-</span><span class='line'>                  <span class="nv">finished</span><span class="p">)</span>
-</span><span class='line'>     <span class="nv">free-ports</span> <span class="p">(</span><span class="nb">- </span><span class="nv">total-ports</span> <span class="p">(</span><span class="nb">count </span><span class="nv">pending</span><span class="p">))</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Here pending-contacts is a list of <a href="http://clojuredocs.org/clojure_core/clojure.core/future">futures</a>, the contacts being currently dialed. Since we don&#8217;t wanna block waiting for the answer the <code>realized?</code>
-function is used in order to count how many of them are finished and filter them. If the finish status is not <code>CONNECTED</code> or <code>CANCELLED</code>
-we assume the contact has failed and we need to issue a retry for those, typically the <code>BUSY</code> and <code>NO ANSWER</code> statuses.</p>
-
-<p>Then, given the total available ports minus the already being dialed contacts, a new batch of contacts is dialed</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="nv">contacts</span> <span class="p">(</span><span class="nb">take </span><span class="nv">free-ports</span> <span class="nv">remaining</span><span class="p">)</span>
-</span><span class='line'><span class="nv">dialing</span> <span class="p">(</span><span class="nf">dispatch-calls</span> <span class="nv">context</span> <span class="nv">notification</span> <span class="nv">contacts</span><span class="p">)</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>The <code>dispatch-calls</code> function is pretty straightforward, it just async calls each contact of the list.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">dispatch-calls</span>
-</span><span class='line'>  <span class="s">&quot;Returns the list of futures of each call thread (one p/contact)&quot;</span>
-</span><span class='line'>  <span class="p">[</span><span class="nv">context</span> <span class="nv">notification</span> <span class="nv">contacts</span><span class="p">]</span>
-</span><span class='line'>  <span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nf">future</span> <span class="p">(</span><span class="nf">call</span> <span class="nv">context</span> <span class="nv">notification</span> <span class="nv">%</span><span class="p">))</span> <span class="nv">contacts</span><span class="p">))</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Finally the call function issues the request against the Asterisk PBX and saves the result for further tracking or analytics.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-<span class='line-number'>12</span>
-<span class='line-number'>13</span>
-<span class='line-number'>14</span>
-<span class='line-number'>15</span>
-<span class='line-number'>16</span>
-<span class='line-number'>17</span>
-<span class='line-number'>18</span>
-<span class='line-number'>19</span>
-<span class='line-number'>20</span>
-<span class='line-number'>21</span>
-<span class='line-number'>22</span>
-<span class='line-number'>23</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">call</span>
-</span><span class='line'>  <span class="s">&quot;Call a contact and wait till the call ends.</span>
-</span><span class='line'><span class="s">   Function returns the hangup event or nil if timedout&quot;</span>
-</span><span class='line'>  <span class="p">[</span><span class="nv">context</span> <span class="nv">notification</span> <span class="nv">contact</span><span class="p">]</span>
-</span><span class='line'>  <span class="p">(</span><span class="nf">manager/with-connection</span> <span class="nv">context</span>
-</span><span class='line'>    <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">trunk</span> <span class="p">(</span><span class="nf">model/get-trunk</span> <span class="nv">notification</span><span class="p">)</span>
-</span><span class='line'>          <span class="nv">call-id</span> <span class="p">(</span><span class="nf">.toString</span> <span class="p">(</span><span class="nf">java.util.UUID/randomUUID</span><span class="p">))</span>
-</span><span class='line'>          <span class="nv">prom</span> <span class="p">(</span><span class="nf">manager/set-user-data!</span> <span class="nv">call-id</span> <span class="p">(</span><span class="nf">promise</span><span class="p">))</span>
-</span><span class='line'>          <span class="nv">response</span> <span class="p">(</span><span class="nf">manager/action</span> <span class="ss">:Originate</span>
-</span><span class='line'>                                   <span class="p">{</span><span class="ss">:Channel</span> <span class="p">(</span><span class="nf">format</span> <span class="s">&quot;%s/%s/%s&quot;</span>
-</span><span class='line'>                                                     <span class="p">(</span><span class="ss">:technology</span> <span class="nv">trunk</span><span class="p">)</span>
-</span><span class='line'>                                                     <span class="p">(</span><span class="ss">:number</span> <span class="nv">trunk</span><span class="p">)</span>
-</span><span class='line'>                                                     <span class="p">(</span><span class="ss">:address</span> <span class="nv">contact</span><span class="p">))</span>
-</span><span class='line'>                                    <span class="ss">:Context</span> <span class="p">(</span><span class="ss">:context</span> <span class="nv">trunk</span><span class="p">)</span>
-</span><span class='line'>                                    <span class="ss">:Exten</span> <span class="p">(</span><span class="ss">:extension</span> <span class="nv">trunk</span><span class="p">)</span>
-</span><span class='line'>                                    <span class="ss">:Priority</span> <span class="p">(</span><span class="ss">:priority</span> <span class="nv">trunk</span><span class="p">)</span>
-</span><span class='line'>                                    <span class="ss">:Timeout</span> <span class="mi">60000</span>
-</span><span class='line'>                                    <span class="ss">:CallerID</span> <span class="p">(</span><span class="ss">:callerid</span> <span class="nv">trunk</span><span class="p">)</span>
-</span><span class='line'>                                    <span class="ss">:Variables</span> <span class="p">[(</span><span class="nf">format</span> <span class="s">&quot;MESSAGE=%s&quot;</span> <span class="p">(</span><span class="ss">:message</span> <span class="nv">notification</span><span class="p">))</span>
-</span><span class='line'>                                                <span class="p">(</span><span class="nf">format</span> <span class="s">&quot;CALLID=%s&quot;</span> <span class="nv">call-id</span><span class="p">)]})]</span>
-</span><span class='line'>      <span class="p">(</span><span class="nf">model/save-result</span> <span class="nv">notification</span>
-</span><span class='line'>                         <span class="nv">contact</span>
-</span><span class='line'>                         <span class="p">(</span><span class="nb">deref </span><span class="nv">prom</span> <span class="mi">200000</span> <span class="p">{</span><span class="ss">:error</span> <span class="err">:</span><span class="ss">:timeout</span><span class="p">})))))</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>The tricky part here is that it&#8217;s impossible to know before-hand the call-id Asterisk is going to use for our newly created call,
-so we need a way to <em>mark</em> our call and relate to it later when an event is received, we do that using the call variable <code>CALLID</code>
-which is a <code>guid</code> created for each new call.</p>
-
-<p>Our call creating function will wait on a <code>promise</code> until the call ends, something we will <code>deliver</code> in the Hangup event as shown here:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-<span class='line-number'>12</span>
-<span class='line-number'>13</span>
-<span class='line-number'>14</span>
-<span class='line-number'>15</span>
-<span class='line-number'>16</span>
-<span class='line-number'>17</span>
-<span class='line-number'>18</span>
-<span class='line-number'>19</span>
-<span class='line-number'>20</span>
-<span class='line-number'>21</span>
-<span class='line-number'>22</span>
-<span class='line-number'>23</span>
-<span class='line-number'>24</span>
-<span class='line-number'>25</span>
-<span class='line-number'>26</span>
-<span class='line-number'>27</span>
-<span class='line-number'>28</span>
-<span class='line-number'>29</span>
-<span class='line-number'>30</span>
-</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="c1">;; Signal the end of the call to the waiting promise in order to</span>
-</span><span class='line'><span class="c1">;; release the channel</span>
-</span><span class='line'><span class="p">(</span><span class="kd">defmethod </span><span class="nv">events/handle-event</span> <span class="s">&quot;Hangup&quot;</span>
-</span><span class='line'>  <span class="p">[</span><span class="nv">event</span> <span class="nv">context</span><span class="p">]</span>
-</span><span class='line'>  <span class="p">(</span><span class="nb">println </span><span class="nv">event</span><span class="p">)</span>
-</span><span class='line'>  <span class="p">(</span><span class="nf">manager/with-connection</span> <span class="nv">context</span>
-</span><span class='line'>    <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">unique-id</span> <span class="p">(</span><span class="ss">:Uniqueid</span> <span class="nv">event</span><span class="p">)</span>
-</span><span class='line'>          <span class="nv">call-id</span> <span class="p">(</span><span class="nf">manager/get-user-data</span> <span class="nv">unique-id</span><span class="p">)</span>
-</span><span class='line'>          <span class="nv">prom</span> <span class="p">(</span><span class="nf">manager/get-user-data</span> <span class="nv">call-id</span><span class="p">)]</span>
-</span><span class='line'>      <span class="p">(</span><span class="nb">println </span><span class="p">(</span><span class="nf">format</span> <span class="s">&quot;Hanging up call %s with unique id %s&quot;</span> <span class="nv">call-id</span> <span class="nv">unique-id</span><span class="p">))</span>
-</span><span class='line'>      <span class="p">(</span><span class="nf">deliver</span> <span class="nv">prom</span> <span class="nv">event</span><span class="p">)</span>
-</span><span class='line'>      <span class="p">(</span><span class="nf">manager/remove-user-data!</span> <span class="nv">call-id</span><span class="p">)</span> <span class="c1">;;FIX: this should be done</span>
-</span><span class='line'>      <span class="c1">;;on the waiting side or promise may get lost</span>
-</span><span class='line'>      <span class="p">(</span><span class="nf">manager/remove-user-data!</span> <span class="nv">unique-id</span><span class="p">))))</span>
-</span><span class='line'>
-</span><span class='line'><span class="c1">;; When CALLID is set, relate it to the call unique-id</span>
-</span><span class='line'><span class="c1">;; to be used later in hangup detection</span>
-</span><span class='line'><span class="c1">;;</span>
-</span><span class='line'><span class="c1">;; The context has the following info inside:</span>
-</span><span class='line'><span class="c1">;;   callid =&gt; promise</span>
-</span><span class='line'><span class="c1">;;   Uniqueid =&gt; callid</span>
-</span><span class='line'><span class="c1">;;</span>
-</span><span class='line'><span class="c1">;; so it&#39;s possible to deliver a response to someone waiting</span>
-</span><span class='line'><span class="c1">;; on the callid promise</span>
-</span><span class='line'><span class="p">(</span><span class="kd">defmethod </span><span class="nv">events/handle-event</span> <span class="s">&quot;VarSet&quot;</span>
-</span><span class='line'>  <span class="p">[</span><span class="nv">event</span> <span class="nv">context</span><span class="p">]</span>
-</span><span class='line'>  <span class="p">(</span><span class="nb">when </span><span class="p">(</span><span class="nb">= </span><span class="p">(</span><span class="ss">:Variable</span> <span class="nv">event</span><span class="p">)</span> <span class="s">&quot;CALLID&quot;</span><span class="p">)</span>
-</span><span class='line'>    <span class="p">(</span><span class="nf">manager/with-connection</span> <span class="nv">context</span>
-</span><span class='line'>      <span class="p">(</span><span class="nb">println </span><span class="p">(</span><span class="nf">format</span> <span class="s">&quot;Setting data %s match %s&quot;</span> <span class="p">(</span><span class="ss">:Uniqueid</span> <span class="nv">event</span><span class="p">)</span> <span class="p">(</span><span class="ss">:Value</span> <span class="nv">event</span><span class="p">)))</span>
-</span><span class='line'>      <span class="p">(</span><span class="nf">manager/set-user-data!</span> <span class="p">(</span><span class="ss">:Uniqueid</span> <span class="nv">event</span><span class="p">)</span> <span class="p">(</span><span class="ss">:Value</span> <span class="nv">event</span><span class="p">)))))</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>It seems more convoluted than what it actually is, when the <code>CALLID</code> variable is set we receive an event that allows the mapping between call-id and
-Asterisk UniqueId to be done. Then when the <code>Hangup</code> occurs we can find the promise to be delivered and let the <code>call</code> function happily end.</p>
-
-<p>Keep tuned for part II, when I will publish the data model and the complete running Dialer.</p>
-
-<p><a href="https://gist.github.com/4666926">Here</a> is the gist with the code of the current post.</p>
-
-<p><em>While you wait, you can follow me on <a href="http://www.twitter.com/guilespi">Twitter</a>!</em></p>
-</div>
-  
-  
-
-
-    </article>
-  
   <div class="pagination">
     
       <a class="prev" href="/blog/page/2/">&larr; Older</a>
@@ -2634,6 +2673,10 @@ Asterisk UniqueId to be done. Then when the <code>Hangup</code> occurs we can fi
   <ul id="recent_posts">
     
       <li class="post">
+        <a href="/blog/2014/04/27/decompiling-clojure-iii/">Decompiling Clojure III, Graph all the things</a>
+      </li>
+    
+      <li class="post">
         <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
       </li>
     
@@ -2647,10 +2690,6 @@ Asterisk UniqueId to be done. Then when the <code>Hangup</code> occurs we can fi
     
       <li class="post">
         <a href="/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/">Zipkin distributed tracing using Clojure</a>
-      </li>
-    
-      <li class="post">
-        <a href="/blog/2013/11/04/is-stackoverflow-a-gentlemens-club/">Is StackOverflow a gentlemen&#8217;s club?</a>
       </li>
     
   </ul>
