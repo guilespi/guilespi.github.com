@@ -145,10 +145,10 @@ we already know from the last post that Clojure compiler loses all macro informa
 
 <p>My goal when decompiling Clojure is not to re-create the original source code, but to re-create the <code>AST</code> that gave origin to the <code>JVM</code> bytecode I&#8217;m observing.</p>
 
-<p>Since I want to create a debugger that knows about s-expressions, I do need a tree representation from the bytecode that can be properly
+<p>Since I was creating a debugger that knows about s-expressions, I needed a tree representation from the bytecode that can be properly
 synchronized with the Clojure source code I&#8217;m debugging.</p>
 
-<p>So my decompiling goal is getting a higher level semantic tree from the <code>JVM</code> bytecode.</p>
+<p>So my decompiling goal was just getting a higher level semantic tree from the <code>JVM</code> bytecode.</p>
 
 <h2>Decompiling phases</h2>
 

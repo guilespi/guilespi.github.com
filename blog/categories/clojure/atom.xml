@@ -4,7 +4,7 @@
   <title><![CDATA[Category: Clojure | Interrupted]]></title>
   <link href="http://guilespi.github.com/blog/categories/clojure/atom.xml" rel="self"/>
   <link href="http://guilespi.github.com/"/>
-  <updated>2014-04-27T23:59:10-03:00</updated>
+  <updated>2014-04-28T00:02:05-03:00</updated>
   <id>http://guilespi.github.com/</id>
   <author>
     <name><![CDATA[Guillermo Winkler]]></name>
@@ -42,10 +42,10 @@ we already know from the last post that Clojure compiler loses all macro informa
 
 <p>My goal when decompiling Clojure is not to re-create the original source code, but to re-create the <code>AST</code> that gave origin to the <code>JVM</code> bytecode I'm observing.</p>
 
-<p>Since I want to create a debugger that knows about s-expressions, I do need a tree representation from the bytecode that can be properly
+<p>Since I was creating a debugger that knows about s-expressions, I needed a tree representation from the bytecode that can be properly
 synchronized with the Clojure source code I'm debugging.</p>
 
-<p>So my decompiling goal is getting a higher level semantic tree from the <code>JVM</code> bytecode.</p>
+<p>So my decompiling goal was just getting a higher level semantic tree from the <code>JVM</code> bytecode.</p>
 
 <h2>Decompiling phases</h2>
 
