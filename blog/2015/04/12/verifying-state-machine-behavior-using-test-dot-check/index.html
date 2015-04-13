@@ -1,0 +1,952 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Verifying state machine behavior using test.check - Interrupted</title>
+  <meta name="author" content="Guillermo Winkler">
+
+  
+  <meta name="description" content="My previous post was an introduction to the motivations and benefits of a property-based testing approach. I also mentioned the John Hughes talk, &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="/javascripts/ender.js"></script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <link href="/atom.xml" rel="alternate" title="Interrupted" type="application/atom+xml">
+  <link href='http://fonts.googleapis.com/css?family=Lato:400,700,400italic,700italic' rel='stylesheet' type='text/css'>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="http://fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="http://fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-34463415-1']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <div id="logo">
+  	<div id="logoLeft">{</div>
+  	<div id="logoText">int 3h</div>
+  	<div id="logoRight">}</div>
+  	<div class="clear"></div>
+  </div>
+  <h1><a href="/">Interrupted</a></h1>
+  
+    <h2>Unordered thoughts about programming, engineering and dealing with the people in the process.</h2>
+  
+  <div class="clear"></div>
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss email">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+    <li><a href="guillermo.winkler@gmail.com" rel="subscribe-email" title="subscribe via email">Email</a></li>
+  
+</ul>
+  
+<form action="http://google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:guilespi.github.com" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/about">About</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      
+        <h1 class="entry-title">Verifying State Machine Behavior Using test.check</h1>
+      
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2015-04-12T17:21:00-03:00" pubdate data-updated="true">Apr 12<span>th</span>, 2015</time>
+        
+         | <a href="#disqus_thread">Comments</a>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>My <a href="/blog/2015/04/12/property-based-testing-using-quickcheck/">previous post</a> was an introduction to the motivations and benefits of a <code>property-based</code> testing approach.</p>
+
+<p>I also mentioned the <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q">John Hughes</a> talk, which is great.</p>
+
+<p>But there&#8217;s a catch.</p>
+
+<p>Until now, we&#8217;ve been considering <code>property-based</code> testing in a <em>functional way</em>, where properties for functions depend only on the function input, assuming no <em>state</em> between function invocations.</p>
+
+<p>But that&#8217;s not always the case, sometimes our function inserts data into some database, sends an email, or sends a message to the car anti-lock braking system.</p>
+
+<p>The examples John mentions in his talk are not straightforward to solve without Erlang&#8217;s QuickCheck, since they&#8217;re verifying <em>state machines</em> behavior.</p>
+
+<p>Since I&#8217;m a Clojurist, I was <a href="https://twitter.com/guilespi/status/566315813268111360">a little confused</a> about why I couldn&#8217;t find a way to do that state machine magic using <code>test.check</code>, so bugging Reid and not reading the fine manual was the evident answer.</p>
+
+<p>Thing is, test.check has this strategy of composing generators, particularly using <code>bind</code> you can generate a value based on a previously generated value by another generator.</p>
+
+<p>For instance, this example shows how to generate a <code>vector</code> and then select an element from it:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">keyword-vector</span> <span class="p">(</span><span class="nf">gen/such-that</span> <span class="nv">not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/keyword</span><span class="p">)))</span>
+</span><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">vec-and-elem</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="nv">keyword-vector</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">v</span><span class="p">]</span> <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/elements</span> <span class="nv">v</span><span class="p">)</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="nv">v</span><span class="p">)))))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">gen/sample</span> <span class="nv">vec-and-elem</span> <span class="mi">4</span><span class="p">)</span>
+</span><span class='line'><span class="c1">;; =&gt; ([:va [:va :b4]] [:Zu1 [:w :Zu1]] [:2 [:2]] [:27X [:27X :KW]])</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>But it doesn&#8217;t have a declarative or simple way to model expected system state.</p>
+
+<h2>What is state?</h2>
+
+<p>First thing we should think about is, when we do have state? Opposed to a situation when we&#8217;re testing a <a href="http://en.wikipedia.org/wiki/Referential_transparency_%28computer_science%29">referentially transparent</a> function.</p>
+
+<p>The function <code>sort</code> from the previous post is referentially transparent, since for the same input vector, always return the same sorted output.</p>
+
+<p>But what happens when we have a situation like the one described in the talk about this circular buffer?</p>
+
+<p><img class="center" src="/images/blog/circularbuffer.png" width="680" height="780" title="'Circular Buffer'" ></p>
+
+<p>If you want to test the behavior of the <code>put</code> and <code>remove</code> API calls, it depends on the <em>state</em> of the system, meaning what elements you already have on your buffer.</p>
+
+<p>The properties <code>put</code> must comply with, depend on the system state.</p>
+
+<p>So you have this slide from John&#8217;s presentation:</p>
+
+<p><img class="center" src="/images/blog/fsmmodel.png" width="680" height="780" title="'API Modelling state'" ></p>
+
+<p>With the strategy proposed by QuickCheck to model this testing problem:</p>
+
+<ul>
+<li>API under test is seen as a sequence of commands.</li>
+<li>Model the state of the system you expect after each command execution.</li>
+<li>Execute the commands and validate the system state is what you expect it to be.</li>
+</ul>
+
+
+<p>So we need to generate a <code>sequence</code> of commands and validate system state, instead of generating input for a single function.</p>
+
+<p>This situation is more common than you may think, even if you&#8217;re doing functional programming state is everywhere, you have state on your databases and you also have state on your UI.</p>
+
+<p>You would never think about <code>deleting an email</code>, and after than <code>sending the email</code>, that&#8217;s an invalid generated sequence of commands(relative to the &#8220;email composing state&#8221;).</p>
+
+<p>This last example is exactly the one described by <a href="https://www.youtube.com/watch?v=HXGpBrmR70U">Ashton Kemerling</a> from Pivotal, they&#8217;re using <code>test.check</code> to randomly generate test scenarios for the UI. And because test.check doesn&#8217;t have the <em>finite state machine modeling thing</em>, they ended up generating impossible or invalid action sequences, and having to discard them as <code>NO-OPs</code> when run.</p>
+
+<h2>FSM Behavior</h2>
+
+<p>The problem with Ashton&#8217;s approach for my situation, was that I had this possibly long sequence of commands or transactions, where each transaction modifies the state of the system, so the last one probable makes no sense at all without some of the <em>in-the-middle</em> ocurring transactions.</p>
+
+<p>The problem is not only discarding invalid sequences, but how to generate something valid <em>at all</em>.</p>
+
+<p>Say you have 3 possible actions:</p>
+
+<ul>
+<li>add <code>[id, name]</code></li>
+<li>edit <code>[id, name]</code></li>
+<li>delete <code>[id]</code></li>
+</ul>
+
+
+<p>If the command sequence you generate is:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">[{</span><span class="ss">:type</span> <span class="ss">:add</span> <span class="ss">:name</span> <span class="s">&quot;John&quot;</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}</span>
+</span><span class='line'> <span class="p">{</span><span class="ss">:type</span> <span class="ss">:add</span> <span class="ss">:name</span> <span class="s">&quot;Ted&quot;</span> <span class="ss">:id</span> <span class="mi">84</span><span class="p">}</span>
+</span><span class='line'> <span class="p">{</span><span class="ss">:type</span> <span class="ss">:delete</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>delete</code> action depends on two things:</p>
+
+<ol>
+<li>Someone to be already added (as in the circular buffer described above).</li>
+<li>Selecting a valid <code>id</code> for deletion from the ones already added.</li>
+</ol>
+
+
+<p>It looks like something you would do using <code>bind</code>, but there&#8217;s something more, there&#8217;s a <code>state</code> that changes when each transaction is applied, and affects each potential command that may be generated afterwards.</p>
+
+<p>Searching around, I found a document titled <a href="http://www.diva-portal.org/smash/get/diva2:343744/FULLTEXT01.pdf">Verifying Finite State Machine Behavior Using QuickCheck Eqc_fsm</a> by Ida Lindgren and Robin Malmros, it&#8217;s an evaluation from <em>Uppsala Universitet</em> to understand whether QuickCheck is suitable for testing mobile telephone communications with base transceiver stations.</p>
+
+<p>Besides the evaluation itself which is worth reading, there&#8217;s a chapter on Finite State Machines I used as guide to implement something similar with <code>test.check</code>.</p>
+
+<h2>The Command protocol</h2>
+
+<p>There&#8217;s a nice diagram in the paper representing the Erlang&#8217;s finite state machine flow</p>
+
+<p><img class="center" src="/images/blog/fsmflow.png" width="680" height="780" title="'QuickCheck FSM Flow'" ></p>
+
+<p>We observe a few things:</p>
+
+<ul>
+<li>You have a set of possible commands to generate.</li>
+<li>Each command has a precondition to check validity against current state.</li>
+<li>Each command affects state in some way, generating a new-state.</li>
+</ul>
+
+
+<p>Translating that ideas into Clojure we can model a command protocol</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defprotocol </span><span class="nv">Command</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Returns true if command can be applied in current system state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Applies generated command to the specified system state, returns new state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Generates command given the current system state, returns command generator&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>So far, we&#8217;ve assumed nothing about:</p>
+
+<ul>
+<li>How state is going to be modeled.</li>
+<li>What structure each generated command has.</li>
+</ul>
+
+
+<p><strong>Since we&#8217;re using <code>test.check</code> we need a particular protocol function <code>generate</code> returning the command generator.</strong></p>
+
+<h2>A Command generator</h2>
+
+<p>Having a protocol, lets define our <code>add</code>, <code>edit</code> and <code>delete</code> transactions.</p>
+
+<p>Questions to answer are:</p>
+
+<ol>
+<li>What will our model of the world look like?</li>
+<li>What&#8217;s the initial and expected states after applying each transaction?</li>
+</ol>
+
+
+<p>Our expected state will be something like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">{</span><span class="ss">:people</span> <span class="p">[{</span><span class="ss">:name</span> <span class="s">&quot;John&quot;</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}</span>
+</span><span class='line'>          <span class="p">{</span><span class="ss">:name</span> <span class="s">&quot;Ted&quot;</span> <span class="ss">:id</span> <span class="mi">84</span><span class="p">}</span>
+</span><span class='line'>          <span class="p">{</span><span class="ss">:name</span> <span class="s">&quot;Tess&quot;</span> <span class="ss">:id</span> <span class="mi">22</span><span class="p">}]}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p></p>
+
+<p>So our <code>add</code> transaction will be:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">add-cmd</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">reify</span>
+</span><span class='line'>    <span class="nv">Command</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">vector? </span><span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">update-in</span> <span class="nv">state</span> <span class="p">[</span><span class="ss">:people</span><span class="p">]</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">people</span><span class="p">]</span>
+</span><span class='line'>                                   <span class="p">(</span><span class="nb">conj </span><span class="nv">people</span>
+</span><span class='line'>                                         <span class="p">(</span><span class="nb">dissoc </span><span class="nv">cmd</span> <span class="ss">:type</span><span class="p">)))))</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:name</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:add</span><span class="p">)</span>
+</span><span class='line'>                           <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="nv">gen/string-alphanumeric</span><span class="p">)</span>
+</span><span class='line'>                           <span class="nv">gen/int</span><span class="p">))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p></p>
+
+<p>The highlights:</p>
+
+<ul>
+<li>Our only precondition is to have a vector to <code>conj</code> the transaction into.</li>
+<li>The <code>generate</code> function returns a standard <code>test.check</code> generator for the command.</li>
+<li>The <code>exec</code> function applies the generated command to the current system state and returns a new state.</li>
+</ul>
+
+
+<p>Now, what&#8217;s interesting is the <code>delete</code> transaction:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">delete-cmd</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">reify</span>
+</span><span class='line'>    <span class="nv">Command</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">seq </span><span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">update-in</span> <span class="nv">state</span> <span class="p">[</span><span class="ss">:people</span><span class="p">]</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">people</span><span class="p">]</span>
+</span><span class='line'>                                   <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nb">not= </span><span class="p">(</span><span class="ss">:id</span> <span class="nv">%</span><span class="p">)</span>
+</span><span class='line'>                                                       <span class="p">(</span><span class="ss">:id</span> <span class="nv">cmd</span><span class="p">))</span>
+</span><span class='line'>                                                <span class="nv">people</span><span class="p">)))))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:delete</span><span class="p">)</span>
+</span><span class='line'>                           <span class="p">(</span><span class="nf">gen/elements</span> <span class="p">(</span><span class="nf">mapv</span> <span class="ss">:id</span> <span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">))))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Note the differences:</p>
+
+<ul>
+<li><code>delete</code> can only be executed if the people list actually has <em>someone</em> inside</li>
+<li>The generator selects to delete an <code>id</code> from the people in the current state (using <code>gen/elements</code> selector)</li>
+<li>Applying the command implies removing the selected person from the next state.</li>
+</ul>
+
+
+<h2>Valid sequence generator</h2>
+
+<p>So how do we generate a sequence of commands giving a command list?</p>
+
+<p>This is a recursive approach, that receives the available commands and the sequence size to generate:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">command-seq</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span> <span class="nv">size</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/one-of</span> <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nf">precondition</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nf">generate</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))))</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">zero? </span><span class="nv">size</span><span class="p">)</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/return</span> <span class="p">[</span><span class="nv">cmd</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/fmap</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nb">partial concat </span><span class="p">[</span><span class="nv">cmd</span><span class="p">])</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nf">command-seq</span> <span class="p">(</span><span class="nf">exec</span> <span class="p">(</span><span class="nb">get </span><span class="nv">commands</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">cmd</span><span class="p">))</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">)</span>
+</span><span class='line'>                              <span class="nv">commands</span>
+</span><span class='line'>                              <span class="p">(</span><span class="nb">dec </span><span class="nv">size</span><span class="p">)))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The important parts being:</p>
+
+<ul>
+<li>Selects only one valid command to generate with <code>one-of</code> after filtering preconditions.</li>
+<li>If command sequence size is <code>0</code> just finish, otherwise recursively concat the rest of the sequence.</li>
+<li>The new state is updated in the step <code>(exec (get commands (:type cmd)) state cmd)</code>, where we need to retrieve the original command object.</li>
+</ul>
+
+
+<p>If you would like to generate random sequence sizes, just bind it with <code>gen/choose</code>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/choose</span> <span class="mi">0</span> <span class="mi">10</span><span class="p">)</span>
+</span><span class='line'>          <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">num-elements</span><span class="p">]</span>
+</span><span class='line'>            <span class="p">(</span><span class="nf">command-seq</span> <span class="p">{</span><span class="ss">:people</span> <span class="p">[]}</span>
+</span><span class='line'>                         <span class="p">{</span><span class="ss">:add-cmd</span> <span class="nv">add-cmd</span>
+</span><span class='line'>                          <span class="ss">:delete-cmd</span> <span class="nv">delete-cmd</span><span class="p">}</span>
+</span><span class='line'>                         <span class="nv">num-elements</span><span class="p">)))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Note the initial state is set to <code>{:people []}</code> for the <code>add</code> command precondition to succeed.</p>
+
+<p>If we generate 3 samples now, it looks good, but there&#8217;s still a problem&#8230;.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(({</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;C&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;2&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;xi&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;p&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;3Q&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;9&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})</span>
+</span><span class='line'> <span class="p">({</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;H&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:name</span> <span class="s">&quot;q&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;F&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})</span>
+</span><span class='line'> <span class="p">({</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;fY&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;a&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">2</span>, <span class="ss">:name</span> <span class="s">&quot;u&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">2</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:name</span> <span class="s">&quot;7&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;E&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Each <code>add-cmd</code> is repeating the <code>id</code>, since it&#8217;s generating it without checking the current state, let&#8217;s change our <code>add</code> transaction generator</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>          <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:name</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:add-cmd</span><span class="p">)</span>
+</span><span class='line'>                               <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="nv">gen/string-alphanumeric</span><span class="p">)</span>
+</span><span class='line'>                               <span class="p">(</span><span class="nf">gen/such-that</span> <span class="o">#</span><span class="p">(</span><span class="nb">-&gt; </span><span class="p">(</span><span class="nf">mapv</span> <span class="ss">:id</span> <span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                                                   <span class="p">(</span><span class="nb">contains? </span><span class="nv">%</span><span class="p">)</span>
+</span><span class='line'>                                                   <span class="nv">not</span><span class="p">)</span>
+</span><span class='line'>                                              <span class="nv">gen/int</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Now the <code>id</code> field generator checks that the generated <code>int</code> doesn&#8217;t belong to the current ids in the state (we could have returned a <code>uuid</code> or something else, but it wouldn&#8217;t make the case for state-dependent generation)</p>
+
+<p>To complete the example we need:</p>
+
+<ul>
+<li>To apply the commands to the system under test.</li>
+<li>A way to retrieve the system state.</li>
+<li>Comparing the final system state with our final generated expected state.</li>
+</ul>
+
+
+<p>Which is pretty straightforward, so we&#8217;ll talk about shrinking first.</p>
+
+<h2>Shrinking the sequence</h2>
+
+<p>If you were to found a failing command sequence using the code above, you would quickly realize it doesn&#8217;t shrink properly.</p>
+
+<p>Since we&#8217;re generating the sequence composing <code>bind</code>, <code>fmap</code> and <code>concat</code> and not using the internal <code>gen/vector</code> or <code>gen/list</code> generators, the generated sequence doesn&#8217;t know how to shrink itself.</p>
+
+<p>If you read <a href="http://reiddraper.com/writing-simple-check/">Reid&#8217;s account</a> on writing <code>test.check</code>, there&#8217;s a glimpse of the problem we face, shrinking depends on the generated data type. So a generated <code>int</code> knows how to shrink itself, which is different on how a <code>vector</code> shrinks itself.</p>
+
+<p>If you combine existing generators, you get shrinking for free, but since we&#8217;re generating our sequence recursively with <code>concat</code> we&#8217;ve lost the <code>vector</code> type shrinking capability.</p>
+
+<p>And there&#8217;s a good reason it is so, but let&#8217;s first see how shrinking works in <code>test.check</code>.</p>
+
+<h3>Rose Trees</h3>
+
+<p><code>test.check</code> complects the data generation step with the shrinking of that data. So when you generate some value, behind the scenes all the alternative shrinked scenarios are also generated.</p>
+
+<p>Let&#8217;s sample an int vector generator:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/sample</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="mi">5</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">([</span><span class="mi">0</span><span class="p">]</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">[</span><span class="mi">-1</span> <span class="mi">1</span><span class="p">]</span> <span class="p">[</span><span class="mi">1</span> <span class="mi">1</span> <span class="mi">-3</span><span class="p">]</span> <span class="p">[</span><span class="mi">2</span> <span class="mi">3</span><span class="p">])</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>sample</code> function is hiding from you the alternatives and showing only the actual generated value.</p>
+
+<p>But, if we call the generator using <code>call-gen</code>, we have a completely different structure:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/call-gen</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="p">(</span><span class="nf">gen/random</span><span class="p">)</span> <span class="mi">1</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">[[</span><span class="mi">1</span><span class="p">]</span> <span class="p">([[</span><span class="mi">0</span><span class="p">]</span> <span class="p">()])]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>What we have is a <a href="http://en.wikipedia.org/wiki/Rose_tree">rose tree</a>, which is a <code>n-ary</code> tree, where each tree node may have any number of childs.</p>
+
+<p><code>test.check</code> uses a very simple modeling approach for the tree, in the form of <code>[parent childs]</code>.</p>
+
+<p>So this tree</p>
+
+<p><img class="center" src="/images/blog/rosetree.png" width="340" height="390" title="'Rose Tree'" ></p>
+
+<p>Is represented as</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">[</span><span class="mi">1</span> <span class="p">[[</span><span class="mi">2</span> <span class="p">[]]</span>
+</span><span class='line'>    <span class="p">[</span><span class="mi">3</span> <span class="p">[]]]]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Everytime you get a generated value, what you&#8217;re looking at is at the root of the tree obtained with <code>rose/root</code>, which is exactly what <code>gen/sample</code> is doing.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">require</span> <span class="o">&#39;</span><span class="p">[</span><span class="nv">clojure.test.check.rose-tree</span> <span class="ss">:as</span> <span class="nv">rose</span><span class="p">])</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">rose/root</span> <span class="p">(</span><span class="nf">gen/call-gen</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="p">(</span><span class="nf">gen/random</span><span class="p">)</span> <span class="mi">1</span><span class="p">))</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The shrinking tree you would expect for a generated vector is:</p>
+
+<p><img class="center" src="/images/blog/vectorshrinktree.png" width="680" height="780" title="'Vector rose tree'" ></p>
+
+<p>The more deep inside the tree, the more shrunk the value is. So for instance <code>integers</code> shrink up to zero, and <code>vectors</code> randomly remove elements until nothing is left.</p>
+
+<p><strong>If we were to actually look inside the shrunk vector tree, it would also include the shrunked integers, but you get the idea.</strong></p>
+
+<h2>Shrinking a valid command sequence</h2>
+
+<p>I said before our sequence doesn&#8217;t shrink since it&#8217;s generated recursively, so this is how our sequence tree looks like so far.</p>
+
+<p><img class="center" src="/images/blog/singlenodecmdtree.png" width="340" height="390" title="'Single node command tree'" ></p>
+
+<p>But even if we were using the vector shrinker we would end up with something like this:</p>
+
+<p><img class="center" src="/images/blog/invalidcmdtree.png" width="680" height="780" title="'Invalid command tree'" ></p>
+
+<p>Since the vector shrinker doesn&#8217;t really know what a valid command sequence looks like, it will just do a random permutation of commands, ending up with many invalid sequences (like <code>[{:add 1} {:delete 2}]</code>).</p>
+
+<p>We will need a custom shrinker, that shrinks only valid command sequences, with a resulting tree like this one:</p>
+
+<p><img class="center" src="/images/blog/validcmdtree.png" width="680" height="780" title="'Valid command tree'" ></p>
+
+<p>To do that, we will modify our protocol to add a new function <code>postcondition</code>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defprotocol </span><span class="nv">Command</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Returns true if command can be applied in current system state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Applies generated command to the specified system state, returns new state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Generates command given the current system state, returns command generator&quot;</span><span class="p">))</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">postcondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Returns true if cmd can be applied on specified state&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p><code>postcondition</code> will be called while shrinking, in order to validate if a shirking sequence is valid for the hipotetical state generated by the previous commands.</p>
+
+<p>Another important function is <code>gen/pure</code>, which allows to return our custom rose tree as generator result.</p>
+
+<p>So this is how our command generator looks like now:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">cmd-seq</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/choose</span> <span class="mi">0</span> <span class="mi">10</span><span class="p">)</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">num-elements</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">cmd-seq-helper</span> <span class="nv">state</span> <span class="nv">commands</span> <span class="nv">num-elements</span><span class="p">)</span>
+</span><span class='line'>                        <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd-seq</span><span class="p">]</span>
+</span><span class='line'>                          <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">shrinked</span> <span class="p">(</span><span class="nf">shrink-sequence</span> <span class="p">(</span><span class="nf">mapv</span> <span class="nb">first </span><span class="nv">cmd-seq</span><span class="p">)</span>
+</span><span class='line'>                                                          <span class="p">(</span><span class="nf">mapv</span> <span class="nb">second </span><span class="nv">cmd-seq</span><span class="p">))]</span>
+</span><span class='line'>                            <span class="p">(</span><span class="nf">gen/gen-pure</span> <span class="nv">shrinked</span><span class="p">)))))))</span>
+</span><span class='line'>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">cmd-seq-helper</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span> <span class="nv">size</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/one-of</span> <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nf">precondition</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nf">generate</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))))</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">zero? </span><span class="nv">size</span><span class="p">)</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/return</span> <span class="p">[[</span><span class="nv">cmd</span> <span class="nv">state</span><span class="p">]])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/fmap</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nb">partial concat </span><span class="p">[[</span><span class="nv">cmd</span> <span class="nv">state</span><span class="p">]])</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nf">cmd-seq-helper</span> <span class="p">(</span><span class="nf">exec</span> <span class="p">(</span><span class="nb">get </span><span class="nv">commands</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">cmd</span><span class="p">))</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">)</span>
+</span><span class='line'>                                 <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                                 <span class="p">(</span><span class="nb">dec </span><span class="nv">size</span><span class="p">)))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We see two different things here:</p>
+
+<ol>
+<li>Generator also returns the state for that particular command.</li>
+<li>There&#8217;s a call to <code>shrink-sequence</code> that generates the rose tree given the command sequence and intermediate states.</li>
+</ol>
+
+
+<p>The <code>shrink-sequence</code> function being:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">shrink-sequence</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">cmd-seq</span> <span class="nv">state-seq</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">letfn</span> <span class="p">[(</span><span class="nf">shrink-subseq</span> <span class="p">[</span><span class="nv">s</span><span class="p">]</span>
+</span><span class='line'>            <span class="p">(</span><span class="nb">when </span><span class="p">(</span><span class="nb">seq </span><span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>              <span class="p">[(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nb">get </span><span class="nv">cmd-seq</span> <span class="nv">%</span><span class="p">)</span> <span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>               <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nf">remove-seq</span> <span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nb">filter </span><span class="p">(</span><span class="nb">partial </span><span class="nv">valid-sequence?</span> <span class="nv">state-seq</span> <span class="nv">cmd-seq</span><span class="p">))</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nf">mapv</span> <span class="nv">shrink-subseq</span><span class="p">))]))]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">shrink-subseq</span> <span class="p">(</span><span class="nb">range </span><span class="mi">0</span> <span class="p">(</span><span class="nb">count </span><span class="nv">cmd-seq</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Highlights:</p>
+
+<ul>
+<li>Returns a rose tree in the form <code>[parent childs]</code>.</li>
+<li><code>remove-seq</code> generates a sequence of subsequences with only one element removed.</li>
+<li><code>valid-sequence?</code> uses <code>postcondition</code> to validate the shrinked seq.</li>
+<li>Recursively shrinks the shrunk childs until nothing&#8217;s left.</li>
+</ul>
+
+
+<h2>Putting all together</h2>
+
+<p>I&#8217;ve put together a running sample for you to check out <a href="https://github.com/guilespi/fsm-test-check/blob/master/src/fsm_test_check/core.clj">here</a>.</p>
+
+<p>There&#8217;s only one property defined: <em>applying all the generated transactions should return true</em>, but it fails when there are two delete commands present.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">apply-tx</span>
+</span><span class='line'>  <span class="s">&quot;Apply transactions fails when there are two delete commands&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">tx-log</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="nv">tx-log</span>
+</span><span class='line'>       <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nb">= </span><span class="ss">:delete-cmd</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">%</span><span class="p">)))</span>
+</span><span class='line'>       <span class="nv">count</span>
+</span><span class='line'>       <span class="p">(</span><span class="nb">&gt; </span><span class="mi">2</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">commands-consistent-apply</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">prop/for-all</span> <span class="p">[</span><span class="nv">tx-log</span> <span class="p">(</span><span class="nf">cmd-seq</span> <span class="p">{</span><span class="ss">:people</span> <span class="p">[]}</span> <span class="p">{</span><span class="ss">:add-cmd</span> <span class="nv">add-cmd</span> <span class="ss">:delete-cmd</span> <span class="nv">delete-cmd</span><span class="p">})]</span>
+</span><span class='line'>                <span class="p">(</span><span class="nb">true? </span><span class="p">(</span><span class="nf">apply-tx</span> <span class="nv">tx-log</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">tc/quick-check</span> <span class="mi">10</span> <span class="nv">commands-consistent-apply</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">{</span><span class="ss">:result</span> <span class="nv">false</span>, <span class="ss">:seed</span> <span class="mi">1428695347616</span>, <span class="ss">:failing-size</span> <span class="mi">7</span>, <span class="ss">:num-tests</span> <span class="mi">8</span>,
+</span><span class='line'> <span class="ss">:fail</span> <span class="p">[({</span><span class="ss">:id</span> <span class="mi">6</span>, <span class="ss">:name</span> <span class="s">&quot;8&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-4</span>, <span class="ss">:name</span> <span class="s">&quot;KvoOq&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-6</span>, <span class="ss">:name</span> <span class="s">&quot;hWn&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">6</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-4</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})]</span>,
+</span><span class='line'> <span class="ss">:shrunk</span> <span class="p">{</span><span class="ss">:total-nodes-visited</span> <span class="mi">55</span>, <span class="ss">:depth</span> <span class="mi">16</span>, <span class="ss">:result</span> <span class="nv">false</span>,
+</span><span class='line'>          <span class="ss">:smallest</span> <span class="p">[({</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;0&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">-2</span>, <span class="ss">:name</span> <span class="s">&quot;2&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">-2</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})]}}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>If you look closely the failing test case has three <code>add</code> commands, but when shrunk only two needed in order to fail appear.</p>
+
+<p>Have fun!</p>
+
+<p>I&#8217;m <a href="https://twitter.com/guilespi">guilespi</a> on Twitter.</p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">Guillermo Winkler</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2015-04-12T17:21:00-03:00" pubdate data-updated="true">Apr 12<span>th</span>, 2015</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/clojure/'>clojure</a>, <a class='category' href='/blog/categories/quickcheck/'>quickcheck</a>, <a class='category' href='/blog/categories/testing/'>testing</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="http://twitter.com/share" class="twitter-share-button" data-url="http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/" data-via="" data-counturl="http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left articlenav" href="/blog/2015/04/12/property-based-testing-using-quickcheck/" title="Previous Post: Property-based testing using QuickCheck">&laquo; Property-based testing using QuickCheck</a>
+      
+      
+    </p>
+  </footer>
+</article>
+
+  <section>
+    <h1>Comments</h1>
+    <div id="disqus_thread" aria-live="polite"><noscript>Please enable JavaScript to view the <a href="http://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+</div>
+  </section>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/">Verifying state machine behavior using test.check</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2015/04/12/property-based-testing-using-quickcheck/">Property-based testing using QuickCheck</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/27/decompiling-clojure-iii/">Decompiling Clojure III, Graph all the things</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/21/decompiling-clojure-ii/">Decompiling Clojure II, The Compiler</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/04/13/decompiling-clojure-i/">Decompiling Clojure I</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2015 - Guillermo Winkler -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+<script type="text/javascript">
+      var disqus_shortname = 'interrupted';
+      
+        
+        // var disqus_developer = 1;
+        var disqus_identifier = 'http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/';
+        var disqus_url = 'http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/';
+        var disqus_script = 'embed.js';
+      
+    (function () {
+      var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+      dsq.src = 'http://' + disqus_shortname + '.disqus.com/' + disqus_script;
+      (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+    }());
+</script>
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = 'http://platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>

@@ -4,7 +4,7 @@
   <title><![CDATA[Interrupted]]></title>
   <link href="http://guilespi.github.com/atom.xml" rel="self"/>
   <link href="http://guilespi.github.com/"/>
-  <updated>2014-04-28T00:02:05-03:00</updated>
+  <updated>2015-04-12T23:21:59-03:00</updated>
   <id>http://guilespi.github.com/</id>
   <author>
     <name><![CDATA[Guillermo Winkler]]></name>
@@ -12,6 +12,1102 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Verifying state machine behavior using test.check]]></title>
+    <link href="http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/"/>
+    <updated>2015-04-12T17:21:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check</id>
+    <content type="html"><![CDATA[<p>My <a href="http://guilespi.github.com/blog/2015/04/12/property-based-testing-using-quickcheck/">previous post</a> was an introduction to the motivations and benefits of a <code>property-based</code> testing approach.</p>
+
+<p>I also mentioned the <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q">John Hughes</a> talk, which is great.</p>
+
+<p>But there&#8217;s a catch.</p>
+
+<p>Until now, we&#8217;ve been considering <code>property-based</code> testing in a <em>functional way</em>, where properties for functions depend only on the function input, assuming no <em>state</em> between function invocations.</p>
+
+<p>But that&#8217;s not always the case, sometimes our function inserts data into some database, sends an email, or sends a message to the car anti-lock braking system.</p>
+
+<p>The examples John mentions in his talk are not straightforward to solve without Erlang&#8217;s QuickCheck, since they&#8217;re verifying <em>state machines</em> behavior.</p>
+
+<p>Since I&#8217;m a Clojurist, I was <a href="https://twitter.com/guilespi/status/566315813268111360">a little confused</a> about why I couldn&#8217;t find a way to do that state machine magic using <code>test.check</code>, so bugging Reid and not reading the fine manual was the evident answer.</p>
+
+<p>Thing is, test.check has this strategy of composing generators, particularly using <code>bind</code> you can generate a value based on a previously generated value by another generator.</p>
+
+<p>For instance, this example shows how to generate a <code>vector</code> and then select an element from it:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">keyword-vector</span> <span class="p">(</span><span class="nf">gen/such-that</span> <span class="nv">not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/keyword</span><span class="p">)))</span>
+</span><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">vec-and-elem</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="nv">keyword-vector</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">v</span><span class="p">]</span> <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/elements</span> <span class="nv">v</span><span class="p">)</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="nv">v</span><span class="p">)))))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">gen/sample</span> <span class="nv">vec-and-elem</span> <span class="mi">4</span><span class="p">)</span>
+</span><span class='line'><span class="c1">;; =&gt; ([:va [:va :b4]] [:Zu1 [:w :Zu1]] [:2 [:2]] [:27X [:27X :KW]])</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>But it doesn&#8217;t have a declarative or simple way to model expected system state.</p>
+
+<h2>What is state?</h2>
+
+<p>First thing we should think about is, when we do have state? Opposed to a situation when we&#8217;re testing a <a href="http://en.wikipedia.org/wiki/Referential_transparency_%28computer_science%29">referentially transparent</a> function.</p>
+
+<p>The function <code>sort</code> from the previous post is referentially transparent, since for the same input vector, always return the same sorted output.</p>
+
+<p>But what happens when we have a situation like the one described in the talk about this circular buffer?</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/circularbuffer.png" width="680" height="780" title="'Circular Buffer'" ></p>
+
+<p>If you want to test the behavior of the <code>put</code> and <code>remove</code> API calls, it depends on the <em>state</em> of the system, meaning what elements you already have on your buffer.</p>
+
+<p>The properties <code>put</code> must comply with, depend on the system state.</p>
+
+<p>So you have this slide from John&#8217;s presentation:</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/fsmmodel.png" width="680" height="780" title="'API Modelling state'" ></p>
+
+<p>With the strategy proposed by QuickCheck to model this testing problem:</p>
+
+<ul>
+<li>API under test is seen as a sequence of commands.</li>
+<li>Model the state of the system you expect after each command execution.</li>
+<li>Execute the commands and validate the system state is what you expect it to be.</li>
+</ul>
+
+
+<p>So we need to generate a <code>sequence</code> of commands and validate system state, instead of generating input for a single function.</p>
+
+<p>This situation is more common than you may think, even if you&#8217;re doing functional programming state is everywhere, you have state on your databases and you also have state on your UI.</p>
+
+<p>You would never think about <code>deleting an email</code>, and after than <code>sending the email</code>, that&#8217;s an invalid generated sequence of commands(relative to the &#8220;email composing state&#8221;).</p>
+
+<p>This last example is exactly the one described by <a href="https://www.youtube.com/watch?v=HXGpBrmR70U">Ashton Kemerling</a> from Pivotal, they&#8217;re using <code>test.check</code> to randomly generate test scenarios for the UI. And because test.check doesn&#8217;t have the <em>finite state machine modeling thing</em>, they ended up generating impossible or invalid action sequences, and having to discard them as <code>NO-OPs</code> when run.</p>
+
+<h2>FSM Behavior</h2>
+
+<p>The problem with Ashton&#8217;s approach for my situation, was that I had this possibly long sequence of commands or transactions, where each transaction modifies the state of the system, so the last one probable makes no sense at all without some of the <em>in-the-middle</em> ocurring transactions.</p>
+
+<p>The problem is not only discarding invalid sequences, but how to generate something valid <em>at all</em>.</p>
+
+<p>Say you have 3 possible actions:</p>
+
+<ul>
+<li>add <code>[id, name]</code></li>
+<li>edit <code>[id, name]</code></li>
+<li>delete <code>[id]</code></li>
+</ul>
+
+
+<p>If the command sequence you generate is:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">[{</span><span class="ss">:type</span> <span class="ss">:add</span> <span class="ss">:name</span> <span class="s">&quot;John&quot;</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}</span>
+</span><span class='line'> <span class="p">{</span><span class="ss">:type</span> <span class="ss">:add</span> <span class="ss">:name</span> <span class="s">&quot;Ted&quot;</span> <span class="ss">:id</span> <span class="mi">84</span><span class="p">}</span>
+</span><span class='line'> <span class="p">{</span><span class="ss">:type</span> <span class="ss">:delete</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>delete</code> action depends on two things:</p>
+
+<ol>
+<li>Someone to be already added (as in the circular buffer described above).</li>
+<li>Selecting a valid <code>id</code> for deletion from the ones already added.</li>
+</ol>
+
+
+<p>It looks like something you would do using <code>bind</code>, but there&#8217;s something more, there&#8217;s a <code>state</code> that changes when each transaction is applied, and affects each potential command that may be generated afterwards.</p>
+
+<p>Searching around, I found a document titled <a href="http://www.diva-portal.org/smash/get/diva2:343744/FULLTEXT01.pdf">Verifying Finite State Machine Behavior Using QuickCheck Eqc_fsm</a> by Ida Lindgren and Robin Malmros, it&#8217;s an evaluation from <em>Uppsala Universitet</em> to understand whether QuickCheck is suitable for testing mobile telephone communications with base transceiver stations.</p>
+
+<p>Besides the evaluation itself which is worth reading, there&#8217;s a chapter on Finite State Machines I used as guide to implement something similar with <code>test.check</code>.</p>
+
+<h2>The Command protocol</h2>
+
+<p>There&#8217;s a nice diagram in the paper representing the Erlang&#8217;s finite state machine flow</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/fsmflow.png" width="680" height="780" title="'QuickCheck FSM Flow'" ></p>
+
+<p>We observe a few things:</p>
+
+<ul>
+<li>You have a set of possible commands to generate.</li>
+<li>Each command has a precondition to check validity against current state.</li>
+<li>Each command affects state in some way, generating a new-state.</li>
+</ul>
+
+
+<p>Translating that ideas into Clojure we can model a command protocol</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defprotocol </span><span class="nv">Command</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Returns true if command can be applied in current system state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Applies generated command to the specified system state, returns new state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Generates command given the current system state, returns command generator&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>So far, we&#8217;ve assumed nothing about:</p>
+
+<ul>
+<li>How state is going to be modeled.</li>
+<li>What structure each generated command has.</li>
+</ul>
+
+
+<p><strong>Since we&#8217;re using <code>test.check</code> we need a particular protocol function <code>generate</code> returning the command generator.</strong></p>
+
+<h2>A Command generator</h2>
+
+<p>Having a protocol, lets define our <code>add</code>, <code>edit</code> and <code>delete</code> transactions.</p>
+
+<p>Questions to answer are:</p>
+
+<ol>
+<li>What will our model of the world look like?</li>
+<li>What&#8217;s the initial and expected states after applying each transaction?</li>
+</ol>
+
+
+<p>Our expected state will be something like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">{</span><span class="ss">:people</span> <span class="p">[{</span><span class="ss">:name</span> <span class="s">&quot;John&quot;</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}</span>
+</span><span class='line'>          <span class="p">{</span><span class="ss">:name</span> <span class="s">&quot;Ted&quot;</span> <span class="ss">:id</span> <span class="mi">84</span><span class="p">}</span>
+</span><span class='line'>          <span class="p">{</span><span class="ss">:name</span> <span class="s">&quot;Tess&quot;</span> <span class="ss">:id</span> <span class="mi">22</span><span class="p">}]}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p></p>
+
+<p>So our <code>add</code> transaction will be:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">add-cmd</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">reify</span>
+</span><span class='line'>    <span class="nv">Command</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">vector? </span><span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">update-in</span> <span class="nv">state</span> <span class="p">[</span><span class="ss">:people</span><span class="p">]</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">people</span><span class="p">]</span>
+</span><span class='line'>                                   <span class="p">(</span><span class="nb">conj </span><span class="nv">people</span>
+</span><span class='line'>                                         <span class="p">(</span><span class="nb">dissoc </span><span class="nv">cmd</span> <span class="ss">:type</span><span class="p">)))))</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:name</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:add</span><span class="p">)</span>
+</span><span class='line'>                           <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="nv">gen/string-alphanumeric</span><span class="p">)</span>
+</span><span class='line'>                           <span class="nv">gen/int</span><span class="p">))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p></p>
+
+<p>The highlights:</p>
+
+<ul>
+<li>Our only precondition is to have a vector to <code>conj</code> the transaction into.</li>
+<li>The <code>generate</code> function returns a standard <code>test.check</code> generator for the command.</li>
+<li>The <code>exec</code> function applies the generated command to the current system state and returns a new state.</li>
+</ul>
+
+
+<p>Now, what&#8217;s interesting is the <code>delete</code> transaction:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">delete-cmd</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">reify</span>
+</span><span class='line'>    <span class="nv">Command</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">seq </span><span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">update-in</span> <span class="nv">state</span> <span class="p">[</span><span class="ss">:people</span><span class="p">]</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">people</span><span class="p">]</span>
+</span><span class='line'>                                   <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nb">not= </span><span class="p">(</span><span class="ss">:id</span> <span class="nv">%</span><span class="p">)</span>
+</span><span class='line'>                                                       <span class="p">(</span><span class="ss">:id</span> <span class="nv">cmd</span><span class="p">))</span>
+</span><span class='line'>                                                <span class="nv">people</span><span class="p">)))))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:delete</span><span class="p">)</span>
+</span><span class='line'>                           <span class="p">(</span><span class="nf">gen/elements</span> <span class="p">(</span><span class="nf">mapv</span> <span class="ss">:id</span> <span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">))))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Note the differences:</p>
+
+<ul>
+<li><code>delete</code> can only be executed if the people list actually has <em>someone</em> inside</li>
+<li>The generator selects to delete an <code>id</code> from the people in the current state (using <code>gen/elements</code> selector)</li>
+<li>Applying the command implies removing the selected person from the next state.</li>
+</ul>
+
+
+<h2>Valid sequence generator</h2>
+
+<p>So how do we generate a sequence of commands giving a command list?</p>
+
+<p>This is a recursive approach, that receives the available commands and the sequence size to generate:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">command-seq</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span> <span class="nv">size</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/one-of</span> <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nf">precondition</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nf">generate</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))))</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">zero? </span><span class="nv">size</span><span class="p">)</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/return</span> <span class="p">[</span><span class="nv">cmd</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/fmap</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nb">partial concat </span><span class="p">[</span><span class="nv">cmd</span><span class="p">])</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nf">command-seq</span> <span class="p">(</span><span class="nf">exec</span> <span class="p">(</span><span class="nb">get </span><span class="nv">commands</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">cmd</span><span class="p">))</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">)</span>
+</span><span class='line'>                              <span class="nv">commands</span>
+</span><span class='line'>                              <span class="p">(</span><span class="nb">dec </span><span class="nv">size</span><span class="p">)))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The important parts being:</p>
+
+<ul>
+<li>Selects only one valid command to generate with <code>one-of</code> after filtering preconditions.</li>
+<li>If command sequence size is <code>0</code> just finish, otherwise recursively concat the rest of the sequence.</li>
+<li>The new state is updated in the step <code>(exec (get commands (:type cmd)) state cmd)</code>, where we need to retrieve the original command object.</li>
+</ul>
+
+
+<p>If you would like to generate random sequence sizes, just bind it with <code>gen/choose</code>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/choose</span> <span class="mi">0</span> <span class="mi">10</span><span class="p">)</span>
+</span><span class='line'>          <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">num-elements</span><span class="p">]</span>
+</span><span class='line'>            <span class="p">(</span><span class="nf">command-seq</span> <span class="p">{</span><span class="ss">:people</span> <span class="p">[]}</span>
+</span><span class='line'>                         <span class="p">{</span><span class="ss">:add-cmd</span> <span class="nv">add-cmd</span>
+</span><span class='line'>                          <span class="ss">:delete-cmd</span> <span class="nv">delete-cmd</span><span class="p">}</span>
+</span><span class='line'>                         <span class="nv">num-elements</span><span class="p">)))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Note the initial state is set to <code>{:people []}</code> for the <code>add</code> command precondition to succeed.</p>
+
+<p>If we generate 3 samples now, it looks good, but there&#8217;s still a problem&#8230;.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(({</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;C&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;2&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;xi&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;p&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;3Q&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;9&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})</span>
+</span><span class='line'> <span class="p">({</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;H&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:name</span> <span class="s">&quot;q&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;F&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})</span>
+</span><span class='line'> <span class="p">({</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;fY&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;a&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">2</span>, <span class="ss">:name</span> <span class="s">&quot;u&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">2</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:name</span> <span class="s">&quot;7&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;E&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Each <code>add-cmd</code> is repeating the <code>id</code>, since it&#8217;s generating it without checking the current state, let&#8217;s change our <code>add</code> transaction generator</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>          <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:name</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:add-cmd</span><span class="p">)</span>
+</span><span class='line'>                               <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="nv">gen/string-alphanumeric</span><span class="p">)</span>
+</span><span class='line'>                               <span class="p">(</span><span class="nf">gen/such-that</span> <span class="o">#</span><span class="p">(</span><span class="nb">-&gt; </span><span class="p">(</span><span class="nf">mapv</span> <span class="ss">:id</span> <span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                                                   <span class="p">(</span><span class="nb">contains? </span><span class="nv">%</span><span class="p">)</span>
+</span><span class='line'>                                                   <span class="nv">not</span><span class="p">)</span>
+</span><span class='line'>                                              <span class="nv">gen/int</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Now the <code>id</code> field generator checks that the generated <code>int</code> doesn&#8217;t belong to the current ids in the state (we could have returned a <code>uuid</code> or something else, but it wouldn&#8217;t make the case for state-dependent generation)</p>
+
+<p>To complete the example we need:</p>
+
+<ul>
+<li>To apply the commands to the system under test.</li>
+<li>A way to retrieve the system state.</li>
+<li>Comparing the final system state with our final generated expected state.</li>
+</ul>
+
+
+<p>Which is pretty straightforward, so we&#8217;ll talk about shrinking first.</p>
+
+<h2>Shrinking the sequence</h2>
+
+<p>If you were to found a failing command sequence using the code above, you would quickly realize it doesn&#8217;t shrink properly.</p>
+
+<p>Since we&#8217;re generating the sequence composing <code>bind</code>, <code>fmap</code> and <code>concat</code> and not using the internal <code>gen/vector</code> or <code>gen/list</code> generators, the generated sequence doesn&#8217;t know how to shrink itself.</p>
+
+<p>If you read <a href="http://reiddraper.com/writing-simple-check/">Reid&#8217;s account</a> on writing <code>test.check</code>, there&#8217;s a glimpse of the problem we face, shrinking depends on the generated data type. So a generated <code>int</code> knows how to shrink itself, which is different on how a <code>vector</code> shrinks itself.</p>
+
+<p>If you combine existing generators, you get shrinking for free, but since we&#8217;re generating our sequence recursively with <code>concat</code> we&#8217;ve lost the <code>vector</code> type shrinking capability.</p>
+
+<p>And there&#8217;s a good reason it is so, but let&#8217;s first see how shrinking works in <code>test.check</code>.</p>
+
+<h3>Rose Trees</h3>
+
+<p><code>test.check</code> complects the data generation step with the shrinking of that data. So when you generate some value, behind the scenes all the alternative shrinked scenarios are also generated.</p>
+
+<p>Let&#8217;s sample an int vector generator:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/sample</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="mi">5</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">([</span><span class="mi">0</span><span class="p">]</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">[</span><span class="mi">-1</span> <span class="mi">1</span><span class="p">]</span> <span class="p">[</span><span class="mi">1</span> <span class="mi">1</span> <span class="mi">-3</span><span class="p">]</span> <span class="p">[</span><span class="mi">2</span> <span class="mi">3</span><span class="p">])</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>sample</code> function is hiding from you the alternatives and showing only the actual generated value.</p>
+
+<p>But, if we call the generator using <code>call-gen</code>, we have a completely different structure:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/call-gen</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="p">(</span><span class="nf">gen/random</span><span class="p">)</span> <span class="mi">1</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">[[</span><span class="mi">1</span><span class="p">]</span> <span class="p">([[</span><span class="mi">0</span><span class="p">]</span> <span class="p">()])]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>What we have is a <a href="http://en.wikipedia.org/wiki/Rose_tree">rose tree</a>, which is a <code>n-ary</code> tree, where each tree node may have any number of childs.</p>
+
+<p><code>test.check</code> uses a very simple modeling approach for the tree, in the form of <code>[parent childs]</code>.</p>
+
+<p>So this tree</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/rosetree.png" width="340" height="390" title="'Rose Tree'" ></p>
+
+<p>Is represented as</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">[</span><span class="mi">1</span> <span class="p">[[</span><span class="mi">2</span> <span class="p">[]]</span>
+</span><span class='line'>    <span class="p">[</span><span class="mi">3</span> <span class="p">[]]]]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Everytime you get a generated value, what you&#8217;re looking at is at the root of the tree obtained with <code>rose/root</code>, which is exactly what <code>gen/sample</code> is doing.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">require</span> <span class="o">&#39;</span><span class="p">[</span><span class="nv">clojure.test.check.rose-tree</span> <span class="ss">:as</span> <span class="nv">rose</span><span class="p">])</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">rose/root</span> <span class="p">(</span><span class="nf">gen/call-gen</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="p">(</span><span class="nf">gen/random</span><span class="p">)</span> <span class="mi">1</span><span class="p">))</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The shrinking tree you would expect for a generated vector is:</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/vectorshrinktree.png" width="680" height="780" title="'Vector rose tree'" ></p>
+
+<p>The more deep inside the tree, the more shrunk the value is. So for instance <code>integers</code> shrink up to zero, and <code>vectors</code> randomly remove elements until nothing is left.</p>
+
+<p><strong>If we were to actually look inside the shrunk vector tree, it would also include the shrunked integers, but you get the idea.</strong></p>
+
+<h2>Shrinking a valid command sequence</h2>
+
+<p>I said before our sequence doesn&#8217;t shrink since it&#8217;s generated recursively, so this is how our sequence tree looks like so far.</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/singlenodecmdtree.png" width="340" height="390" title="'Single node command tree'" ></p>
+
+<p>But even if we were using the vector shrinker we would end up with something like this:</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/invalidcmdtree.png" width="680" height="780" title="'Invalid command tree'" ></p>
+
+<p>Since the vector shrinker doesn&#8217;t really know what a valid command sequence looks like, it will just do a random permutation of commands, ending up with many invalid sequences (like <code>[{:add 1} {:delete 2}]</code>).</p>
+
+<p>We will need a custom shrinker, that shrinks only valid command sequences, with a resulting tree like this one:</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/validcmdtree.png" width="680" height="780" title="'Valid command tree'" ></p>
+
+<p>To do that, we will modify our protocol to add a new function <code>postcondition</code>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defprotocol </span><span class="nv">Command</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Returns true if command can be applied in current system state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Applies generated command to the specified system state, returns new state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Generates command given the current system state, returns command generator&quot;</span><span class="p">))</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">postcondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Returns true if cmd can be applied on specified state&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p><code>postcondition</code> will be called while shrinking, in order to validate if a shirking sequence is valid for the hipotetical state generated by the previous commands.</p>
+
+<p>Another important function is <code>gen/pure</code>, which allows to return our custom rose tree as generator result.</p>
+
+<p>So this is how our command generator looks like now:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">cmd-seq</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/choose</span> <span class="mi">0</span> <span class="mi">10</span><span class="p">)</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">num-elements</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">cmd-seq-helper</span> <span class="nv">state</span> <span class="nv">commands</span> <span class="nv">num-elements</span><span class="p">)</span>
+</span><span class='line'>                        <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd-seq</span><span class="p">]</span>
+</span><span class='line'>                          <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">shrinked</span> <span class="p">(</span><span class="nf">shrink-sequence</span> <span class="p">(</span><span class="nf">mapv</span> <span class="nb">first </span><span class="nv">cmd-seq</span><span class="p">)</span>
+</span><span class='line'>                                                          <span class="p">(</span><span class="nf">mapv</span> <span class="nb">second </span><span class="nv">cmd-seq</span><span class="p">))]</span>
+</span><span class='line'>                            <span class="p">(</span><span class="nf">gen/gen-pure</span> <span class="nv">shrinked</span><span class="p">)))))))</span>
+</span><span class='line'>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">cmd-seq-helper</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span> <span class="nv">size</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/one-of</span> <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nf">precondition</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nf">generate</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))))</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">zero? </span><span class="nv">size</span><span class="p">)</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/return</span> <span class="p">[[</span><span class="nv">cmd</span> <span class="nv">state</span><span class="p">]])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/fmap</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nb">partial concat </span><span class="p">[[</span><span class="nv">cmd</span> <span class="nv">state</span><span class="p">]])</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nf">cmd-seq-helper</span> <span class="p">(</span><span class="nf">exec</span> <span class="p">(</span><span class="nb">get </span><span class="nv">commands</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">cmd</span><span class="p">))</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">)</span>
+</span><span class='line'>                                 <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                                 <span class="p">(</span><span class="nb">dec </span><span class="nv">size</span><span class="p">)))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We see two different things here:</p>
+
+<ol>
+<li>Generator also returns the state for that particular command.</li>
+<li>There&#8217;s a call to <code>shrink-sequence</code> that generates the rose tree given the command sequence and intermediate states.</li>
+</ol>
+
+
+<p>The <code>shrink-sequence</code> function being:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">shrink-sequence</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">cmd-seq</span> <span class="nv">state-seq</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">letfn</span> <span class="p">[(</span><span class="nf">shrink-subseq</span> <span class="p">[</span><span class="nv">s</span><span class="p">]</span>
+</span><span class='line'>            <span class="p">(</span><span class="nb">when </span><span class="p">(</span><span class="nb">seq </span><span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>              <span class="p">[(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nb">get </span><span class="nv">cmd-seq</span> <span class="nv">%</span><span class="p">)</span> <span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>               <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nf">remove-seq</span> <span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nb">filter </span><span class="p">(</span><span class="nb">partial </span><span class="nv">valid-sequence?</span> <span class="nv">state-seq</span> <span class="nv">cmd-seq</span><span class="p">))</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nf">mapv</span> <span class="nv">shrink-subseq</span><span class="p">))]))]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">shrink-subseq</span> <span class="p">(</span><span class="nb">range </span><span class="mi">0</span> <span class="p">(</span><span class="nb">count </span><span class="nv">cmd-seq</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Highlights:</p>
+
+<ul>
+<li>Returns a rose tree in the form <code>[parent childs]</code>.</li>
+<li><code>remove-seq</code> generates a sequence of subsequences with only one element removed.</li>
+<li><code>valid-sequence?</code> uses <code>postcondition</code> to validate the shrinked seq.</li>
+<li>Recursively shrinks the shrunk childs until nothing&#8217;s left.</li>
+</ul>
+
+
+<h2>Putting all together</h2>
+
+<p>I&#8217;ve put together a running sample for you to check out <a href="https://github.com/guilespi/fsm-test-check/blob/master/src/fsm_test_check/core.clj">here</a>.</p>
+
+<p>There&#8217;s only one property defined: <em>applying all the generated transactions should return true</em>, but it fails when there are two delete commands present.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">apply-tx</span>
+</span><span class='line'>  <span class="s">&quot;Apply transactions fails when there are two delete commands&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">tx-log</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="nv">tx-log</span>
+</span><span class='line'>       <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nb">= </span><span class="ss">:delete-cmd</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">%</span><span class="p">)))</span>
+</span><span class='line'>       <span class="nv">count</span>
+</span><span class='line'>       <span class="p">(</span><span class="nb">&gt; </span><span class="mi">2</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">commands-consistent-apply</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">prop/for-all</span> <span class="p">[</span><span class="nv">tx-log</span> <span class="p">(</span><span class="nf">cmd-seq</span> <span class="p">{</span><span class="ss">:people</span> <span class="p">[]}</span> <span class="p">{</span><span class="ss">:add-cmd</span> <span class="nv">add-cmd</span> <span class="ss">:delete-cmd</span> <span class="nv">delete-cmd</span><span class="p">})]</span>
+</span><span class='line'>                <span class="p">(</span><span class="nb">true? </span><span class="p">(</span><span class="nf">apply-tx</span> <span class="nv">tx-log</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">tc/quick-check</span> <span class="mi">10</span> <span class="nv">commands-consistent-apply</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">{</span><span class="ss">:result</span> <span class="nv">false</span>, <span class="ss">:seed</span> <span class="mi">1428695347616</span>, <span class="ss">:failing-size</span> <span class="mi">7</span>, <span class="ss">:num-tests</span> <span class="mi">8</span>,
+</span><span class='line'> <span class="ss">:fail</span> <span class="p">[({</span><span class="ss">:id</span> <span class="mi">6</span>, <span class="ss">:name</span> <span class="s">&quot;8&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-4</span>, <span class="ss">:name</span> <span class="s">&quot;KvoOq&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-6</span>, <span class="ss">:name</span> <span class="s">&quot;hWn&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">6</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-4</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})]</span>,
+</span><span class='line'> <span class="ss">:shrunk</span> <span class="p">{</span><span class="ss">:total-nodes-visited</span> <span class="mi">55</span>, <span class="ss">:depth</span> <span class="mi">16</span>, <span class="ss">:result</span> <span class="nv">false</span>,
+</span><span class='line'>          <span class="ss">:smallest</span> <span class="p">[({</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;0&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">-2</span>, <span class="ss">:name</span> <span class="s">&quot;2&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">-2</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})]}}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>If you look closely the failing test case has three <code>add</code> commands, but when shrunk only two needed in order to fail appear.</p>
+
+<p>Have fun!</p>
+
+<p>I&#8217;m <a href="https://twitter.com/guilespi">guilespi</a> on Twitter.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Property-based testing using QuickCheck]]></title>
+    <link href="http://guilespi.github.com/blog/2015/04/12/property-based-testing-using-quickcheck/"/>
+    <updated>2015-04-12T17:05:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2015/04/12/property-based-testing-using-quickcheck</id>
+    <content type="html"><![CDATA[<p>Last year I attended <a href="https://www.youtube.com/playlist?list=PLZdCLR02grLp__wRg5OTavVj4wefg69hM">Clojure/West</a> in San Francisco, and was lucky enough to be at the talk by <a href="http://www.cse.chalmers.se/~rjmh/">John Hughes</a>, called <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q">Testing the hard stuff and staying sane</a>.</p>
+
+<p>I had been previously exposed to some of the concepts of generative testing, particularly Haskell&#8217;s own QuickCheck, but never took the time to do something with it, this talk by John Hughes really stroke a chord on the usefulness of generative -or property based- testing, and how much effort you can save by knowing when and <em>how</em> to use it.</p>
+
+<p>I&#8217;ve been using Clojure <code>test.check</code> for a while, and since I&#8217;m preparing a <a href="http://testing.uy">conference talk</a> on the subject, I decided to write something about it.</p>
+
+<p>So bear with me, in this two-entry blog post I&#8217;ll try to convince you why down the road, it may save your ass too.</p>
+
+<h2>What generative testing is not</h2>
+
+<p>Probably the reason I&#8217;ve always looked down upon generative testing, was thinking it was just about random/junk data generation, for the too-lazy-to-think-your-own-test-cases kind of attitude.</p>
+
+<p>Well, that&#8217;s <strong>not</strong> what generative testing is about.</p>
+
+<p>You <em>will</em> have data generators for some input domain values, but trying to generate random noise to make the program fail is just <a href="http://en.wikipedia.org/wiki/Fuzz_testing">fuzzy testing</a>, and generative testing is more than that.</p>
+
+<p>How?</p>
+
+<h2>On Types vs. Tests</h2>
+
+<p><a href="http://blog.guillermowinkler.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/">I&#8217;ve written before</a> about the difficulty of using types to prove your program is correct. Some people will always say you can do it with type systems(and types even more complex than the program under proof), and you can <a href="https://coq.inria.fr/a-short-introduction-to-coq">always use Coq</a>.</p>
+
+<p>But for everyday programming languages and type systems it&#8217;s not that easy, say for instance this <code>Java</code> function (assuming such thing exists).</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kt">int</span> <span class="nf">f1</span><span class="o">(</span><span class="kt">int</span> <span class="n">x</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>    <span class="k">return</span> <span class="mi">1</span><span class="o">/</span><span class="n">x</span><span class="o">;</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>You can say just by looking at the function, that any integer except zero will succeed.</p>
+
+<p>In this other case:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kt">int</span> <span class="nf">f2</span><span class="o">(</span><span class="n">String</span> <span class="n">x</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>    <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="na">length</span><span class="o">();</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The function will succeed except when <code>x</code> is <code>null</code>.</p>
+
+<p>So assuming that&#8217;s expected behavior, you can write some tests to check on those special failure cases.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="nd">@Test</span><span class="o">(</span><span class="n">expected</span><span class="o">=</span><span class="n">ArithmeticException</span><span class="o">.</span><span class="na">class</span><span class="o">)</span>
+</span><span class='line'><span class="kd">public</span> <span class="kt">void</span> <span class="nf">testDivideByZero</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>    <span class="n">f1</span><span class="o">(</span><span class="kc">null</span><span class="o">);</span>
+</span><span class='line'><span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'><span class="c1">//this is just a unit test</span>
+</span><span class='line'><span class="nd">@Test</span>
+</span><span class='line'><span class="kd">public</span> <span class="kt">void</span> <span class="nf">testUnity</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>    <span class="n">assertEquals</span><span class="o">(</span><span class="mi">1</span><span class="o">,</span> <span class="n">f1</span><span class="o">(</span><span class="mi">1</span><span class="o">));</span>
+</span><span class='line'><span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'><span class="nd">@Test</span><span class="o">(</span><span class="n">expected</span><span class="o">=</span><span class="n">NullPointerException</span><span class="o">.</span><span class="na">class</span><span class="o">)</span>
+</span><span class='line'><span class="kd">public</span> <span class="kt">void</span> <span class="nf">testNullPointerException</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>    <span class="n">f2</span><span class="o">(</span><span class="kc">null</span><span class="o">);</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>But for the sake of making and argument, assume you&#8217;re testing <code>openssl</code> and this is the function you have&#8230;</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+<span class='line-number'>37</span>
+<span class='line-number'>38</span>
+</pre></td><td class='code'><pre><code class='c'><span class='line'><span class="kt">int</span> <span class="nf">dtls1_process_heartbeat</span><span class="p">(</span><span class="n">SSL</span> <span class="o">*</span><span class="n">s</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">{</span>
+</span><span class='line'>    <span class="p">...</span>    
+</span><span class='line'>  <span class="cm">/* Read type and payload length first */</span>
+</span><span class='line'>  <span class="k">if</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">16</span> <span class="o">&gt;</span> <span class="n">s</span><span class="o">-&gt;</span><span class="n">s3</span><span class="o">-&gt;</span><span class="n">rrec</span><span class="p">.</span><span class="n">length</span><span class="p">)</span>
+</span><span class='line'>      <span class="k">return</span> <span class="mi">0</span><span class="p">;</span> <span class="cm">/* silently discard */</span>
+</span><span class='line'>  <span class="n">hbtype</span> <span class="o">=</span> <span class="o">*</span><span class="n">p</span><span class="o">++</span><span class="p">;</span>
+</span><span class='line'>  <span class="n">n2s</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">payload</span><span class="p">);</span>
+</span><span class='line'>  <span class="k">if</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">payload</span> <span class="o">+</span> <span class="mi">16</span> <span class="o">&gt;</span> <span class="n">s</span><span class="o">-&gt;</span><span class="n">s3</span><span class="o">-&gt;</span><span class="n">rrec</span><span class="p">.</span><span class="n">length</span><span class="p">)</span>
+</span><span class='line'>      <span class="k">return</span> <span class="mi">0</span><span class="p">;</span> <span class="cm">/* silently discard per RFC 6520 sec. 4 */</span>
+</span><span class='line'>  <span class="n">pl</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">if</span> <span class="p">(</span><span class="n">hbtype</span> <span class="o">==</span> <span class="n">TLS1_HB_REQUEST</span><span class="p">)</span>
+</span><span class='line'>      <span class="p">{</span>
+</span><span class='line'>      <span class="kt">unsigned</span> <span class="kt">char</span> <span class="o">*</span><span class="n">buffer</span><span class="p">,</span> <span class="o">*</span><span class="n">bp</span><span class="p">;</span>
+</span><span class='line'>      <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">write_length</span> <span class="o">=</span> <span class="mi">1</span> <span class="cm">/* heartbeat type */</span> <span class="o">+</span>
+</span><span class='line'>                      <span class="mi">2</span> <span class="cm">/* heartbeat length */</span> <span class="o">+</span>
+</span><span class='line'>                      <span class="n">payload</span> <span class="o">+</span> <span class="n">padding</span><span class="p">;</span>
+</span><span class='line'>      <span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'>      <span class="k">if</span> <span class="p">(</span><span class="n">write_length</span> <span class="o">&gt;</span> <span class="n">SSL3_RT_MAX_PLAIN_LENGTH</span><span class="p">)</span>
+</span><span class='line'>          <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'>      <span class="cm">/* Allocate memory for the response, size is 1 byte</span>
+</span><span class='line'><span class="cm">      * message type, plus 2 bytes payload length, plus</span>
+</span><span class='line'><span class="cm">      * payload, plus padding</span>
+</span><span class='line'><span class="cm">      */</span>
+</span><span class='line'>      <span class="n">buffer</span> <span class="o">=</span> <span class="n">OPENSSL_malloc</span><span class="p">(</span><span class="n">write_length</span><span class="p">);</span>
+</span><span class='line'>      <span class="n">bp</span> <span class="o">=</span> <span class="n">buffer</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'>      <span class="cm">/* Enter response type, length and copy payload */</span>
+</span><span class='line'>      <span class="o">*</span><span class="n">bp</span><span class="o">++</span> <span class="o">=</span> <span class="n">TLS1_HB_RESPONSE</span><span class="p">;</span>
+</span><span class='line'>      <span class="n">s2n</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">bp</span><span class="p">);</span>
+</span><span class='line'>      <span class="n">memcpy</span><span class="p">(</span><span class="n">bp</span><span class="p">,</span> <span class="n">pl</span><span class="p">,</span> <span class="n">payload</span><span class="p">);</span>
+</span><span class='line'>      <span class="n">bp</span> <span class="o">+=</span> <span class="n">payload</span><span class="p">;</span>
+</span><span class='line'>      <span class="cm">/* Random padding */</span>
+</span><span class='line'>      <span class="n">RAND_pseudo_bytes</span><span class="p">(</span><span class="n">bp</span><span class="p">,</span> <span class="n">padding</span><span class="p">);</span>
+</span><span class='line'>    <span class="p">...</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Unless you&#8217;ve been living under a rock, you should have heard about <a href="http://heartbleed.com/">the heartbleed openssl bug</a>, and it&#8217;s just what you think, the bug was in the heartbeat processing function above, and <a href="http://git.openssl.org/gitweb/?p=openssl.git;a=commitdiff;h=96db902">this is the patch with the fix</a>.</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/opensslpatch.png" width="680" height="780" title="'Openssl heartbleed patch'" ></p>
+
+<p>Who was the motherfucker that missed that unit test, huh?</p>
+
+<p>When the function logic is more complex, it&#8217;s exponentially more difficult to define both types and tests that make us feel more confident about pushing our nasty bits of code to a production environment.</p>
+
+<p>And that&#8217;s because the possible states our system or function can be, expand like hell when new variables and conditional branches are added (more on this later).</p>
+
+<h2>Code Coverage vs. Domain Coverage</h2>
+
+<p>Looking at the function above you can see the problem is not on some untested code path, but on some <em>values</em> used on function invocation.</p>
+
+<p>Some people aim for 100% code coverage, according to <a href="http://en.wikipedia.org/wiki/Code_coverage">Wikipedia</a></p>
+
+<p><em>In computer science, code coverage is a measure used to describe the degree to which the source code of a program is tested by a particular test suite. A program with high code coverage has been more thoroughly tested and has a lower chance of containing software bugs than a program with low code coverage.</em></p>
+
+<p>Which is great, but since you can have 100% code coverage of the <code>1/x</code> function, but regarding domain coverage (for which values of <code>x</code> the function works as expected) you have nothing.</p>
+
+<p><strong>Code coverage without domain coverage is just half the picture.</strong></p>
+
+<p>Even unit tests prove <em>almost</em> nothing.</p>
+
+<h2>Tests do not prove correctness</h2>
+
+<p>There&#8217;s a great quote by <a href="http://en.wikiquote.org/wiki/Edsger_W._Dijkstra">Edsger Dijkstra</a> from Notes on Structured Programming that says</p>
+
+<p><em>Program testing can be used to show the presence of bugs, but never to show their absence!</em></p>
+
+<p>Which is to say, no matter how many unit tests you write, you&#8217;re only proving that your program works (or fails) for the set of inputs you have selected when writing your tests.</p>
+
+<p>It doesn&#8217;t say a thing about the generalities or about a general property of the system or function under test.</p>
+
+<h2>What is generative testing?</h2>
+
+<p>So what <em>is</em> generative testing?</p>
+
+<p>In generative testing you describe some properties your system or function must comply with, and the test runner provides randomized data to check if the property holds for that data, that&#8217;s why it&#8217;s also known as <code>property-based</code> testing.</p>
+
+<p>A <code>property</code> is a high-level specification of behavior that should hold for a range of data points.</p>
+
+<p>So a property works somewhat like a <em>domain iterator</em>, bringing a little bit closer types and tests.</p>
+
+<p>Since you&#8217;re defining how the system should behave for a particular <em>domain</em> of values, not when the program is compiled, but when it&#8217;s <strong>run</strong>.</p>
+
+<h2>Why random data generation is important?</h2>
+
+<p>In the StrangeLoop 2014 conference, Joe Armstrong gave a talk called <a href="https://www.youtube.com/watch?v=lKXe3HUG2l4">The mess we&#8217;re in</a>, where he discussed system&#8217;s complexity, go watch it since it&#8217;s real fun.</p>
+
+<p>He says that a <code>C</code> program with only six <code>32 bit</code> integers, has the same number of states that atoms exist on the planet, so testing your program by computing all combinations it&#8217;s going to take a <em>really long</em> time.</p>
+
+<p>And if it&#8217;s almost impossible to find the number of states computationally, imagine trying to find the number of possible failing states <em>manually</em>.</p>
+
+<p>I&#8217;ve been in the position of having to hunt a bug that occurs only once a year in a system processing millions of transactions daily, and it&#8217;s not fun at all. Pray to the logging gods the proper piece of information revealing the culprit is logged, so you don&#8217;t have to wait another year for the bug to show up.</p>
+
+<p>If your software runs inside a car, would you wait for the next deadly crash to analyze that dead-driver log file? Maybe that&#8217;s why <a href="http://www.quviq.com/volvo-quickcheck/">Volvo uses QuickCheck</a> to test embedded systems.</p>
+
+<p>Generative testing helps you put and test your system in so many different states it would be impossible to do manually.</p>
+
+<h2>What&#8217;s in a property</h2>
+
+<p>So, should we throw away all of our type systems and unit tests?</p>
+
+<p>Not so fast, property based testing is not a <strong>replacement</strong> for types nor for unit tests.</p>
+
+<p>Haskell and Scala both have their frameworks for property based testing (QuickCheck and ScalaTest) and are strongly typed languages.</p>
+
+<p>Property based testing helps us define considerations for our programs where type systems do not reach, and where dynamically typed languages have a void.</p>
+
+<p>So what does a property look like?</p>
+
+<p>All concepts so far hold true for any language with a generative testing framework, many re-implementations exist from the <a href="http://en.wikipedia.org/wiki/QuickCheck">original QuickCheck version</a>, from <code>C</code>, <code>C++</code>, <code>Ruby</code>, <code>Clojure</code>, <code>Javascript</code>, <code>Java</code>, <code>Scala</code>, etc. So now I will show you a couple of examples in different languages, just for you to grasp the basic property definition semantics, which is quite similar along the implementations.</p>
+
+<p>These examples are not meant to show how powerful generative testing can be, yet.</p>
+
+<h3>Sorting in Javascript</h3>
+
+<p>Let&#8217;s say you want to test a <code>sort</code> function of yours, and instead of specifying individual test cases for particular arrays of integers, you define a property, which says that after sorting the array, the last element should always be greater than the first one.</p>
+
+<p>This is what the property looks like in Javascript&#8217;s <a href="www.jscheck.org">JSCheck</a></p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+</pre></td><td class='code'><pre><code class='javascript'><span class='line'><span class="nx">JSC</span><span class="p">.</span><span class="nx">reps</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+</span><span class='line'><span class="nx">JSC</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span>
+</span><span class='line'>    <span class="s2">&quot;First is lower than last after sort&quot;</span><span class="p">,</span>
+</span><span class='line'>    <span class="kd">function</span> <span class="p">(</span><span class="nx">verdict</span><span class="p">,</span> <span class="nx">v</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>        <span class="kd">var</span> <span class="nx">sorted</span> <span class="o">=</span> <span class="nx">v</span><span class="p">.</span><span class="nx">sort</span><span class="p">();</span>
+</span><span class='line'>        <span class="k">return</span> <span class="nx">verdict</span><span class="p">(</span><span class="nx">sorted</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="nx">sorted</span><span class="p">[</span><span class="nx">sorted</span><span class="p">.</span><span class="nx">length</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]);</span>
+</span><span class='line'>    <span class="p">},</span>
+</span><span class='line'>    <span class="p">[</span>
+</span><span class='line'>        <span class="nx">JSC</span><span class="p">.</span><span class="nx">array</span><span class="p">([</span><span class="nx">JSC</span><span class="p">.</span><span class="nx">integer</span><span class="p">()]])</span>
+</span><span class='line'>    <span class="p">]</span>
+</span><span class='line'><span class="p">);</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>You don&#8217;t say which particular arrays, just any array of integers must comply with the property, the framework will generate values for you (in this case 10 repetitions will be run).</p>
+
+<p>This is the result:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='javascript'><span class='line'><span class="nx">First</span> <span class="nx">is</span> <span class="nx">lower</span> <span class="nx">than</span> <span class="nx">last</span> <span class="nx">after</span> <span class="nx">sort</span><span class="o">:</span> <span class="mi">10</span> <span class="nx">cases</span> <span class="nx">tested</span><span class="p">,</span> <span class="mi">0</span> <span class="nx">pass</span><span class="p">,</span> <span class="mi">10</span> <span class="nx">fail</span>
+</span><span class='line'> <span class="nx">FAIL</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">([</span><span class="mi">3</span><span class="p">])</span>
+</span><span class='line'> <span class="nx">FAIL</span> <span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="p">([</span><span class="mi">5</span><span class="p">])</span>
+</span><span class='line'> <span class="nx">FAIL</span> <span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="p">([</span><span class="mi">7</span><span class="p">])</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Did you spot when the property doesn&#8217;t hold?</p>
+
+<h3>Sorting in Clojure</h3>
+
+<p>This is what the same property looks like in Clojure&#8217;s <a href="https://github.com/clojure/test.check">test.check</a>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">prop-sorted-first-less-than-last</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">prop/for-all</span> <span class="p">[</span><span class="nv">v</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))]</span>
+</span><span class='line'>    <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">s</span> <span class="p">(</span><span class="nb">sort </span><span class="nv">v</span><span class="p">)]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">&lt; </span><span class="p">(</span><span class="nb">first </span><span class="nv">s</span><span class="p">)</span> <span class="p">(</span><span class="nb">last </span><span class="nv">s</span><span class="p">)))))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">tc/quick-check</span> <span class="mi">200</span> <span class="nv">prop-sorted-first-less-than-last</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>With the following result:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'>   <span class="nv">=&gt;</span> <span class="p">{</span><span class="ss">:result</span> <span class="nv">false</span>, <span class="ss">:failing-size</span> <span class="mi">0</span>, <span class="ss">:num-tests</span> <span class="mi">1</span>, <span class="ss">:fail</span> <span class="p">[[</span><span class="mi">3</span><span class="p">]]</span>,
+</span><span class='line'>       <span class="ss">:shrunk</span> <span class="p">{</span><span class="ss">:total-nodes-visited</span> <span class="mi">5</span>, <span class="ss">:depth</span> <span class="mi">2</span>, <span class="ss">:result</span> <span class="nv">false</span>,
+</span><span class='line'>                <span class="ss">:smallest</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]]}}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>As you see, <strong>both fail</strong>, since they doesn&#8217;t hold for single element arrays.</p>
+
+<p>The basic semantic for both languages is the same, you need:</p>
+
+<ul>
+<li>A property name (or claim in JSCheck)</li>
+<li>Some data generator for your input values</li>
+<li>A verdict or testing function who validates the property</li>
+</ul>
+
+
+<blockquote><p>This encourages a higher level approach to testing in the form of abstract invariant functions should satisfy universally.</p><footer><strong>http://book.realworldhaskell.org/read/testing-and-quality-assurance.html</strong></footer></blockquote>
+
+
+<h2>Shrinking</h2>
+
+<p>One of the best features of QuickCheck is the ability to shrink your failure cases to the minimum failing case (not all the implementations have it by the way).</p>
+
+<p>When generating random data, you may end up with a failing case too big to rationalize (for instance a thousand elements vector), but it doesn&#8217;t necessarily means that all the 1000 elements are needed for the function under test to fail.</p>
+
+<p>When QuickCheck finds a failing case, it tries to shrink the input data to the <em>smallest</em> failing case.</p>
+
+<p>This is a powerful feature if you don&#8217;t want to repeat many unnecessary steps in order to reproduce a problem.</p>
+
+<p>A simple example to illustrate the feature comes from <code>test.check</code> samples.</p>
+
+<p>Here a property must hold for all integer vectors, and it is that no vector should have the element <code>42</code> in it.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">prop-no-42</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">prop/for-all</span> <span class="p">[</span><span class="nv">v</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">)]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nb">not </span><span class="p">(</span><span class="nb">some </span><span class="o">#</span><span class="p">{</span><span class="mi">42</span><span class="p">}</span> <span class="nv">v</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>When the tests are run, <code>test.check</code> find a failing case being the vector <code>[10 1 28 40 11 -33 42 -42 39 -13 13 -44 -36 11 27 -42 4 21 -39]</code>, which is <strong>not</strong> the minimum failing case.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">tc/quick-check</span> <span class="mi">100</span> <span class="nv">prop-no-42</span><span class="p">)</span>
+</span><span class='line'><span class="c1">;; =&gt; {:result false,</span>
+</span><span class='line'>       <span class="ss">:failing-size</span> <span class="mi">45</span>,
+</span><span class='line'>       <span class="ss">:num-tests</span> <span class="mi">46</span>,
+</span><span class='line'>       <span class="ss">:fail</span> <span class="p">[[</span><span class="mi">10</span> <span class="mi">1</span> <span class="mi">28</span> <span class="mi">40</span> <span class="mi">11</span> <span class="mi">-33</span> <span class="mi">42</span> <span class="mi">-42</span> <span class="mi">39</span> <span class="mi">-13</span> <span class="mi">13</span> <span class="mi">-44</span> <span class="mi">-36</span> <span class="mi">11</span> <span class="mi">27</span> <span class="mi">-42</span> <span class="mi">4</span> <span class="mi">21</span> <span class="mi">-39</span><span class="p">]]</span>,
+</span><span class='line'>       <span class="ss">:shrunk</span> <span class="p">{</span><span class="ss">:total-nodes-visited</span> <span class="mi">38</span>,
+</span><span class='line'>                <span class="ss">:depth</span> <span class="mi">18</span>,
+</span><span class='line'>                <span class="ss">:result</span> <span class="nv">false</span>,
+</span><span class='line'>                <span class="ss">:smallest</span> <span class="p">[[</span><span class="mi">42</span><span class="p">]]}}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>So it starts shrinking the failing case until it reaches the smallest vector for which the property doesn&#8217;t hold, which is <code>[42]</code>.</p>
+
+<p>Unfortunately <code>JSCheck</code> doesn&#8217;t shrink the failure cases, but <a href="http://jsverify.github.io/">jsverify</a> does, so if you want some shrinking on Javascript give it a try.</p>
+
+<h2>Final thoughts</h2>
+
+<p>Since QuickCheck depends on generators to cover the domain, we need to consider those domains may be infinite or very large, so it may be impossible to find the offending failure cases. None the less, we know that by running long enough or a large enough number of tests, we have better odds of finding a problem.</p>
+
+<p>Regarding the name, <code>property-based</code> testing is a much better name than <code>generative</code> testing, since the later gives the idea that it&#8217;s about generating data, when it&#8217;s truly about function and system properties.</p>
+
+<p>The higher level approach of property definition, coupled with the data generation and shrinking features provided by QuickCheck, really helps the case of having something more closer to <em>proofs</em> about how your system behaves.</p>
+
+<p>In the next post I&#8217;ll write about finite state machine testing using <code>test.check</code> and show more complex examples, stay tuned.</p>
+
+<p>I&#8217;m <a href="https://twitter.com/guilespi">guilespi</a> on Twitter, reach out!</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Decompiling Clojure III, Graph all the things]]></title>
@@ -3531,293 +4627,6 @@ As if the current distribution of wealth is the result of someone who decided to
 <p><img class="center" src="http://guilespi.github.com/images/blog/sharingpie.jpg" width="450" height="550" title="'Wealth as a finite pie to be distributed'" ></p>
 
 <p>The semantic confusion may be just part of the reason we&#8217;re having the wrong conversation, about distributing, instead of being about affecting the distribution by creating.</p>
-]]></content>
-  </entry>
-  
-  <entry>
-    <title type="html"><![CDATA[Group-by considered harmful]]></title>
-    <link href="http://guilespi.github.com/blog/2012/10/19/group-by-considered-harmful/"/>
-    <updated>2012-10-19T23:01:00-02:00</updated>
-    <id>http://guilespi.github.com/blog/2012/10/19/group-by-considered-harmful</id>
-    <content type="html"><![CDATA[<p>Main reason big data is so trendy is because it&#8217;s closely related with web scale, and that of course means money. It&#8217;s the kind of problem you would <em>love</em> to have. Everybody thinks big data is about being <a href="http://techcrunch.com/2012/08/22/how-big-is-facebooks-data-2-5-billion-pieces-of-content-and-500-terabytes-ingested-every-day/">Facebook</a>, or <a href="http://www.slideshare.net/nkallen/q-con-3770885">Twitter</a>, or <a href="http://highscalability.com/blog/2012/2/13/tumblr-architecture-15-billion-page-views-a-month-and-harder.html">Tumblr</a></p>
-
-<p>But big data is not only about <a href="http://gigaom.com/cloud/facebook-hadoop-cluster/">moving your humongous petabytes</a> of user pictures from one place to another, big data is also a state of mind, and it can help you solve problems better and faster even if you&#8217;re not on the petabyte scale.</p>
-
-<p>And if you have ever seen a report taking ages to render, this post is for you. Because we&#8217;re in the Google age, so if you tell me it&#8217;s acceptable for you to take fucking <em>seconds</em> to spit that information out, you are delusional. In 2008, <a href="http://googleblog.blogspot.com/2008/07/we-knew-web-was-big.html">Google index size</a> was over a trillion pages, and the typical search returns <a href="http://googleblog.blogspot.com/2009/01/powering-google-search.html">in less than 0.2 seconds</a>.</p>
-
-<p>And one of the main reasons Google is so fast and engineers still deliver applications with such a poor performance, is because we&#8217;re still modeling data as if disk space is an issue.</p>
-
-<p>Let me explain.</p>
-
-<p>Let&#8217;s think about a telephony system that needs to keep track of every call entering a company or made by employees. A typical simplified cdr -call detail report- table will look like this:</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+
-</span><span class='line'>| Call Start | Call End | Duration | Direction |    Number     | Extension |   User   |
-</span><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+
-</span><span class='line'>| 20:05      | 20:15    |      600 | OUT       | +130512319292 |      1010 | John.Doe |
-</span><span class='line'>+------------+----------+----------+-----------+---------------+-----------+----------+</span></code></pre></td></tr></table></div></figure>
-
-
-<p>That&#8217;s perfectly fine, and if someone wants to know who the hell did that 40 minute call to the hot-line, it&#8217;s all in there.</p>
-
-<p>But let&#8217;s suppose you&#8217;re a contact center organization with 2000 extensions, you could easily be dialing 150K calls an hour. That&#8217;s billion of rows in a year&#8217;s operation and the table being hit pretty hard. Then someone asks, how much money have we spent in calls to Morocco? Or better yet, I want an alarm to be triggered when a deviation from standard operation occurs to detect fraud.</p>
-
-<p>So to avoid <a href="http://www.toadworld.com/Knowledge/DatabaseKnowledge/GuyHarrisonsResolvingOracleContention/ResolvingOracleContention/Feb2008Article/tabid/304/Default.aspx">locking and contention</a> over your call table, you may do something like this:</p>
-
-<figure class='code'><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-</pre></td><td class='code'><pre><code class=''><span class='line'>+------------+-----------------+----------+--------------+-------------+
-</span><span class='line'>|   Slice    | Number of calls | Duration |     User     | Destination |
-</span><span class='line'>+------------+-----------------+----------+--------------+-------------+
-</span><span class='line'>| 2012-10-10 |             121 |    49239 | John.Doe     | Germany     |
-</span><span class='line'>| 2012-10-10 |              90 |    28711 | John.Doe     | Australia   |
-</span><span class='line'>| 2012-09-02 |              78 |    12111 | Richard.Read | Uruguay     |
-</span><span class='line'>+------------+-----------------+----------+--------------+-------------+</span></code></pre></td></tr></table></div></figure>
-
-
-<p>So you separate your <a href="http://datawarehouse4u.info/OLTP-vs-OLAP.html">realtime transactions</a> hitting the cdr, from the table used to query about statistical stuff. In datawarehousing there&#8217;s a name for that, it&#8217;s called <a href="http://en.wikipedia.org/wiki/Extract,_transform,_load">ETL</a>. The process of offloading your data to a system designed to be queried against. A real pain in the ass.</p>
-
-<p>Of course you have an advantage, you can answer many questions using the same stored information.</p>
-
-<ul>
-<li>How many calls has made Ricky this month?</li>
-<li>How many minutes were spent this week calling Bangladesh, by all users?</li>
-<li>What&#8217;s the day of the month with the most number of calls</li>
-</ul>
-
-
-<p>And we all know how, we use <a href="http://msdn.microsoft.com/en-us/library/b6ddy7ah(v=vs.80).aspx">GROUP BY</a>, the most overlooked clause in the performance analysis.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="k">SET</span> <span class="n">TRANSACTION</span> <span class="k">ISOLATION</span> <span class="k">LEVEL</span> <span class="k">READ</span> <span class="n">UNCOMMITED</span><span class="p">;</span>
-</span><span class='line'><span class="k">SELECT</span> <span class="k">User</span><span class="p">,</span> <span class="k">SUM</span><span class="p">(</span><span class="n">Duration</span><span class="p">)</span> <span class="k">as</span> <span class="n">Duration</span>
-</span><span class='line'><span class="k">FROM</span> <span class="n">CallSummary</span>
-</span><span class='line'><span class="k">WHERE</span> <span class="n">Slice</span> <span class="o">=</span> <span class="s1">&#39;2012-10-10&#39;</span>
-</span><span class='line'><span class="k">GROUP</span> <span class="k">BY</span> <span class="k">User</span><span class="p">;</span>
-</span><span class='line'><span class="k">COMMIT</span><span class="p">;</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Then you face a problem again, whether to be fast, or to be up-to-date. Because if you update your summary every night you cannot detect a fraud deviation in the last 30 minutes, but if you update your summary with every call you have again the contention issue.</p>
-
-<p>But why is it that you need to have all the information in the same table?</p>
-
-<p>It&#8217;s the relational way of storing information, which gives you flexibility when you don&#8217;t know what you&#8217;re going to do with your data, but can be the cause of performance degradation. If you&#8217;re using group-by, the engine is iterating over each value in order to sum it up, there&#8217;s no free way out of that. I will show you a way that costs disk space and a loss in query flexibility.</p>
-
-<p>Before continuing with data modeling, let me do a little digression on data visualization.</p>
-
-<p>There&#8217;s a paper by <a href="http://www.perceptualedge.com/articles/visual_business_intelligence/differences_in_analytical_tools.pdf">Stephen Few</a>, who divides analytical audiences into three different types:</p>
-
-<p>1) Exploratory Analytics</p>
-
-<p><em>Strong need for data exploration. The analyst approaches data with usually open ended questions &#8220;What may be hiding here that&#8217;s interesting?&#8221;. Tools such as <a href="http://www.panopticon.com/">Panopticon Explorer</a> or <a href="http://spotfire.tibco.com/">Spotfire</a> are in this category.</em></p>
-
-<p>2) Custom Analytics</p>
-
-<p><em>People analyzing information in routine ways, performing the same analytical task as part of their job. User only needs to understand the information presented and business processes.</em></p>
-
-<p>3) Customizable Analytics</p>
-
-<p><em>Provides ready-made libraries for developers that need to create an application, such as <a href="http://www.qlikview.com/">QlikView</a>.</em></p>
-
-<p>And for some reason that escapes me, engineers almost always get stuck in a mix of options 1 and 2. We think our users to be creative geniuses with a need to derive hidden insights from our data, so we put this wonderful flexible tools in place for them.</p>
-
-<p>Bullshit. People want to get their job done and go home with the kids, and it&#8217;s <em>your</em> job to know better.</p>
-
-<p>Most of the time reporting or &#8220;analytics&#8221; as it&#8217;s usually called, is not analytics, because the user is not doing analysis, he&#8217;s just looking at data translated into information. And what data you&#8217;re putting on the screen, is the result of proper program management and understanding of your user&#8217;s needs. Or is it that it took you months to push that product out of the door and you don&#8217;t really know which information is relevant to your users?</p>
-
-<p>And if you do, why is it that you&#8217;re modeling your data as if you don&#8217;t?</p>
-
-<p>Hey, we&#8217;ll just let them query the information using all this dimensions, cool, and you can have this pivot table here, you see it &#8230;pivoting&#8230; give me fucking a break, the last time I started dragging and dropping dimensions in a pivot table I had a surmenage, who <em>are</em> your users?</p>
-
-<p>Digression ended, how do you escape the group-by trap?</p>
-
-<p>Well, you just store it grouped according to your query needs. I&#8217;ll show you first the idea, and then a specific Cassandra modeling of it.</p>
-
-<p>Let&#8217;s suppose that after talking to our users, we come to the conclusion they need the following questions answered:</p>
-
-<ul>
-<li>How many minutes spent in outgoing calls to different destinations, by day, week and month.</li>
-<li>How many calls made by users by day, week and month.</li>
-</ul>
-
-
-<p>We can storage each counter separately, and only lock when updating a specific counter. Our counters will have this format:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Destination</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Period</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Slice</span><span class="o">&gt;</span>
-</span><span class='line'><span class="n">CallsMade</span><span class="p">:</span><span class="o">&lt;</span><span class="k">User</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Period</span><span class="o">&gt;</span><span class="p">:</span><span class="o">&lt;</span><span class="n">Slice</span><span class="o">&gt;</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>Where <code>&lt;Destination&gt;</code> is any destination we&#8217;ve called, <code>&lt;User&gt;</code> is any user in the system, <code>&lt;Period&gt;</code> is one of &#8220;ByDay&#8221;, &#8220;ByMonth&#8221; and &#8220;ByWeek&#8221;, and <code>&lt;Slice&gt;</code> is the specific time the value is being counted for.</p>
-
-<p>So an instance of our data may look like this:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-</pre></td><td class='code'><pre><code class='sql'><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="n">Canada</span><span class="p">:</span><span class="n">ByDay</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">09</span> <span class="o">=</span> <span class="mi">432</span> <span class="p">;</span> <span class="mi">432</span> <span class="n">minutes</span> <span class="k">in</span> <span class="n">calls</span> <span class="n">made</span> <span class="k">to</span> <span class="n">Canada</span> <span class="k">on</span> <span class="n">the</span> <span class="k">day</span> <span class="mi">2012</span><span class="o">-</span><span class="mi">10</span><span class="o">-</span><span class="mi">09</span>
-</span><span class='line'><span class="n">OutgoingMinutes</span><span class="p">:</span><span class="n">USA</span><span class="p">:</span><span class="n">ByMonth</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">11</span> <span class="o">=</span> <span class="mi">54021</span> <span class="p">;</span> <span class="mi">54021</span> <span class="n">minutes</span> <span class="k">in</span> <span class="n">calls</span> <span class="n">made</span> <span class="k">to</span> <span class="n">USA</span> <span class="k">on</span> <span class="n">November</span>
-</span><span class='line'><span class="n">CallsMade</span><span class="p">:</span><span class="n">John</span><span class="p">.</span><span class="n">Doe</span><span class="p">:</span><span class="n">ByDay</span><span class="p">:</span><span class="mi">2012</span><span class="o">-</span><span class="mi">12</span><span class="o">-</span><span class="mi">20</span> <span class="o">=</span> <span class="mi">43</span> <span class="p">;</span> <span class="n">John</span> <span class="n">made</span> <span class="mi">43</span> <span class="n">calls</span> <span class="n">today</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>If you&#8217;re looking at it and you think it looks like a map, it&#8217;s pretty much one. With the main difference each key is isolated from each other, you don&#8217;t need to lock on a page and four indexes in order to update a row. Each value gets updated separately.</p>
-
-<p>There&#8217;s two things we need to be sure about:</p>
-
-<ul>
-<li>Counter increment or decrement supporting concurrency</li>
-<li>A way to query for date ranges, and it should be <em>fast</em></li>
-</ul>
-
-
-<p>So it happens, we can do this with <a href="http://wiki.apache.org/cassandra/Counters">Cassandra counters</a>, and we get the bonus of having our data replicated and distributed, so you can scale out <a href="http://stackoverflow.com/questions/8839436/when-does-cassandra-hit-amdahls-law">almost</a> <a href="http://techblog.netflix.com/2011/11/benchmarking-cassandra-scalability-on.html">linearly</a>, no matter how many users or destinations you have, or how long you decide to keep track of statistics.</p>
-
-<p>The modeling is pretty straightforward, it looks like this:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-<span class='line-number'>4</span>
-<span class='line-number'>5</span>
-<span class='line-number'>6</span>
-<span class='line-number'>7</span>
-<span class='line-number'>8</span>
-<span class='line-number'>9</span>
-<span class='line-number'>10</span>
-<span class='line-number'>11</span>
-<span class='line-number'>12</span>
-<span class='line-number'>13</span>
-<span class='line-number'>14</span>
-<span class='line-number'>15</span>
-<span class='line-number'>16</span>
-<span class='line-number'>17</span>
-<span class='line-number'>18</span>
-<span class='line-number'>19</span>
-</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">Statistics</span> <span class="err">=</span> <span class="p">{</span>
-</span><span class='line'>   <span class="err">OutgoingMinutes:Canada:ByDay</span> <span class="err">=</span> <span class="err">{</span>
-</span><span class='line'>        <span class="err">2012-10-09</span> <span class="err">:</span> <span class="err">432</span>
-</span><span class='line'>        <span class="err">2012-10-08</span> <span class="err">:</span> <span class="err">121</span>
-</span><span class='line'>        <span class="err">2012-10-07</span> <span class="err">:</span> <span class="err">987</span>
-</span><span class='line'>        <span class="err">2012-09-11</span> <span class="err">:</span> <span class="err">100</span>
-</span><span class='line'>        <span class="err">...</span>
-</span><span class='line'>   <span class="p">}</span><span class="err">,</span>
-</span><span class='line'>   <span class="err">OutgoingMinutes:USA:ByMonth</span> <span class="err">=</span> <span class="p">{</span>
-</span><span class='line'>        <span class="err">2012-11</span> <span class="err">:</span> <span class="err">54021</span>
-</span><span class='line'>        <span class="err">2012-10</span> <span class="err">:</span> <span class="err">43222</span>
-</span><span class='line'>        <span class="err">...</span>
-</span><span class='line'>   <span class="p">}</span><span class="err">,</span>
-</span><span class='line'>   <span class="err">CallsMade:John.Doe:ByDay</span> <span class="err">=</span> <span class="p">{</span>
-</span><span class='line'>        <span class="err">2012-12-20</span> <span class="err">:</span> <span class="err">43,</span>
-</span><span class='line'>        <span class="err">2012-12-19</span> <span class="err">:</span> <span class="err">34,</span>
-</span><span class='line'>        <span class="err">...</span>
-</span><span class='line'>   <span class="p">}</span>
-</span><span class='line'><span class="err">}</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>I like modeling Cassandra schemas like JSON, it helps visualizing data layout better. For this particular case each element is:</p>
-
-<p><code>Statistics</code> is the Column Family, <code>OutgoingMinutes:Canada:ByDay</code> is the Row Key, <code>2012-10-09</code> is the Column name -you&#8217;re going to be sorting by this value- and
-<code>432</code> is the value, this is a counter column type that supports distributed updating.</p>
-
-<p>You can create the column family like this:</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">create</span> <span class="err">column</span> <span class="err">family</span> <span class="err">Statistics</span> <span class="err">with</span> <span class="err">column_type=Standard</span> <span class="err">and</span> <span class="err">default_validation_class=CounterColumnType</span> <span class="err">and</span> <span class="err">key_validation_class=UTF</span><span class="mi">8</span><span class="err">Type</span> <span class="err">and</span> <span class="err">comparator=UTF</span><span class="mi">8</span><span class="err">Type;</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>When you&#8217;ve been factorizing things out for years, repeating the key in order to have different values it&#8217;s nothing less than a deadly sin.</p>
-
-<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-<span class='line-number'>2</span>
-<span class='line-number'>3</span>
-</pre></td><td class='code'><pre><code class='json'><span class='line'><span class="err">OutgoingMinutes:Canada:ByDay</span> <span class="err">=</span> <span class="mi">100</span>
-</span><span class='line'><span class="err">OutgoingMinutes:Canada:ByMonth</span> <span class="err">=</span> <span class="mi">1000</span>
-</span><span class='line'><span class="err">OutgoingMinutes:Canada:ByYear</span> <span class="err">=</span> <span class="mi">10000</span>
-</span></code></pre></td></tr></table></div></figure>
-
-
-<p>It&#8217;s like it&#8217;s screaming for a normalization, so much bytes being wasted in key names!</p>
-
-<p>But hey, we&#8217;re rendering views like this in our cluster with 100+ GB of data in milliseconds, <em>without</em> doing any kind of ETL.</p>
-
-<p><img class="left" src="http://guilespi.github.com/images/blog/countervisualization.png" width="580" height="680" title="'i6 analytics visualization'" ></p>
-
-<p>We&#8217;re trading disk space for computation <em>and</em> I/O time, in order to improve query performance, but it&#8217;s I/O time the usual culprit, having to iterate over a more flexible data structure in order to satisfy the rendering of a particular view . Sometimes you can even trade computation time for I/O time to improve performance, as in the case of <a href="http://www.datastax.com/dev/blog/whats-new-in-cassandra-1-0-compression">Cassandra</a> <a href="http://www.edwardcapriolo.com/roller/edwardcapriolo/entry/cassandra_compression_is_like_getting">data compression</a>.</p>
-
-<p>Wrapping up, this is not a case against relational databases, it&#8217;s a case for modeling things carefully, you don&#8217;t have to stick to an option because it seems to be flexible enough to accommodate all needs. You can always implement a message queue on top of MySQL, but it would be foolish not to use RabbitMQ, and you can always implement an inverted index on top of MySQL, but you should better use Lucene.</p>
-
-<p>Data storage doesn&#8217;t need to be <em>always</em> relational.</p>
-]]></content>
-  </entry>
-  
-  <entry>
-    <title type="html"><![CDATA[Waterfall is a mindset]]></title>
-    <link href="http://guilespi.github.com/blog/2012/09/02/waterfall-is-a-mindset/"/>
-    <updated>2012-09-02T18:21:00-03:00</updated>
-    <id>http://guilespi.github.com/blog/2012/09/02/waterfall-is-a-mindset</id>
-    <content type="html"><![CDATA[<p>The Agile camp has become an industry, <a href="http://www.amazon.com/s?ie=UTF8&amp;page=1&amp;rh=n%3A283155%2Ck%3AAgile%20programming">books</a>,
-<a href="http://www.construx.com/Page.aspx?cid=2601">seminars</a>, <a href="http://www.linkedin.com/search/fpsearch?type=people&amp;keywords=agile+coach&amp;pageKey=member-home">agile coaches</a>,
- <a href="http://gigaom.com/2010/10/07/inside-pivotal-labs-the-agile-force-behind-twitter-and-groupon/">awesome incubators</a>,
-there&#8217;s a lot of people making a living preaching this approach to building software, and it&#8217;s ok.
-Hey, <a href="http://gettingreal.37signals.com/ch11_Theres_Nothing_Functional_about_a_Functional_Spec.php">this guy</a> even said you can build a product without
-writing up-front what you&#8217;re fucking supposed to do, kudos to him.</p>
-
-<p>But there&#8217;s one thing missing in the picture, and it&#8217;s the fact that everybody seems to think agile is about <em>process</em>, and I dare to say it&#8217;s not <em>only</em> about process, it&#8217;s also about people.
-There&#8217;s a lot of waterfallists thinking they&#8217;re agile just because they&#8217;re in a meeting every morning where nobody&#8217;s allowed to use a chair.</p>
-
-<p>Bullshit, let me show you.</p>
-
-<p>This is how waterfall looks like by the books:</p>
-
-<p><img class="center" src="http://guilespi.github.com/images/blog/waterfallprocess.gif" width="480" height="580" title="'Waterfall by the book'" ></p>
-
-<p>This tries to convey the idea that waterfall is about process, you see, in each box there&#8217;s a task being done in each step, cool.</p>
-
-<p>But that&#8217;s not how people look at this picture, this is what people see when they get shown these boxes:</p>
-
-<p><img class="center" src="http://guilespi.github.com/images/blog/waterfallpeople.gif" width="480" height="580" title="'Waterfall by the walking practitioner'" ></p>
-
-<p>Roles, what&#8217;s <strong>my</strong> part, you know? The worst thing never said about waterfall, is that impregnates the idea that the development process has an underlying hierarchy of roles. And as it happens in any hierarchy, nobody wants to be at the bottom, ain&#8217;t it?</p>
-
-<p>Even the picture itself has a reminiscence of the infamous law of the henhouse, I wouldn&#8217;t be the one getting all the shit either.</p>
-
-<p><img class="center" src="http://guilespi.github.com/images/blog/henhouselaw.jpg" width="280" height="380" title="'La ley del gallinero'" ></p>
-
-<p>As Agile positions itself more about process and less about people, there&#8217;s going to be lot of fresh engineers knowing how to do a sprint, but waterfallists at heart.</p>
-
-<p>Fortunately they&#8217;re easy to spot if you come across one of them, they almost always say:</p>
-
-<ul>
-<li>I want to be an architect</li>
-<li>I don&#8217;t want to be a tester</li>
-<li>I don&#8217;t want to program forever, it&#8217;s just a step in my career.</li>
-</ul>
-
-
-<p>Let them burn in hell, yet another reason why <a href="http://guilespi.github.com/blog/2012/09/01/the-world-of-warcraft-of-the-linkedinz/">we don&#8217;t have ranks</a>.</p>
-
-<p><img class="center" src="http://guilespi.github.com/images/blog/gallinero.jpg" width="280" height="380" title="'Waterfallists doing a scrum meeting'" ></p>
 ]]></content>
   </entry>
   

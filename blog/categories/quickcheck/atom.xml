@@ -1,0 +1,911 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: quickcheck | Interrupted]]></title>
+  <link href="http://guilespi.github.com/blog/categories/quickcheck/atom.xml" rel="self"/>
+  <link href="http://guilespi.github.com/"/>
+  <updated>2015-04-12T23:21:59-03:00</updated>
+  <id>http://guilespi.github.com/</id>
+  <author>
+    <name><![CDATA[Guillermo Winkler]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Verifying state machine behavior using test.check]]></title>
+    <link href="http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/"/>
+    <updated>2015-04-12T17:21:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check</id>
+    <content type="html"><![CDATA[<p>My <a href="/blog/2015/04/12/property-based-testing-using-quickcheck/">previous post</a> was an introduction to the motivations and benefits of a <code>property-based</code> testing approach.</p>
+
+<p>I also mentioned the <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q">John Hughes</a> talk, which is great.</p>
+
+<p>But there's a catch.</p>
+
+<p>Until now, we've been considering <code>property-based</code> testing in a <em>functional way</em>, where properties for functions depend only on the function input, assuming no <em>state</em> between function invocations.</p>
+
+<p>But that's not always the case, sometimes our function inserts data into some database, sends an email, or sends a message to the car anti-lock braking system.</p>
+
+<p>The examples John mentions in his talk are not straightforward to solve without Erlang's QuickCheck, since they're verifying <em>state machines</em> behavior.</p>
+
+<p>Since I'm a Clojurist, I was <a href="https://twitter.com/guilespi/status/566315813268111360">a little confused</a> about why I couldn't find a way to do that state machine magic using <code>test.check</code>, so bugging Reid and not reading the fine manual was the evident answer.</p>
+
+<p>Thing is, test.check has this strategy of composing generators, particularly using <code>bind</code> you can generate a value based on a previously generated value by another generator.</p>
+
+<p>For instance, this example shows how to generate a <code>vector</code> and then select an element from it:</p>
+
+<p>```clojure
+(def keyword-vector (gen/such-that not-empty (gen/vector gen/keyword)))
+(def vec-and-elem
+  (gen/bind keyword-vector</p>
+
+<pre><code>        (fn [v] (gen/tuple (gen/elements v) (gen/return v)))))
+</code></pre>
+
+<p>(gen/sample vec-and-elem 4)
+;; => ([:va [:va :b4]] [:Zu1 [:w :Zu1]] [:2 [:2]] [:27X [:27X :KW]])
+```</p>
+
+<p>But it doesn't have a declarative or simple way to model expected system state.</p>
+
+<h2>What is state?</h2>
+
+<p>First thing we should think about is, when we do have state? Opposed to a situation when we're testing a <a href="http://en.wikipedia.org/wiki/Referential_transparency_%28computer_science%29">referentially transparent</a> function.</p>
+
+<p>The function <code>sort</code> from the previous post is referentially transparent, since for the same input vector, always return the same sorted output.</p>
+
+<p>But what happens when we have a situation like the one described in the talk about this circular buffer?</p>
+
+<p><img class="center" src="/images/blog/circularbuffer.png" width="680" height="780" title="'Circular Buffer'" ></p>
+
+<p>If you want to test the behavior of the <code>put</code> and <code>remove</code> API calls, it depends on the <em>state</em> of the system, meaning what elements you already have on your buffer.</p>
+
+<p>The properties <code>put</code> must comply with, depend on the system state.</p>
+
+<p>So you have this slide from John's presentation:</p>
+
+<p><img class="center" src="/images/blog/fsmmodel.png" width="680" height="780" title="'API Modelling state'" ></p>
+
+<p>With the strategy proposed by QuickCheck to model this testing problem:</p>
+
+<ul>
+<li>API under test is seen as a sequence of commands.</li>
+<li>Model the state of the system you expect after each command execution.</li>
+<li>Execute the commands and validate the system state is what you expect it to be.</li>
+</ul>
+
+
+<p>So we need to generate a <code>sequence</code> of commands and validate system state, instead of generating input for a single function.</p>
+
+<p>This situation is more common than you may think, even if you're doing functional programming state is everywhere, you have state on your databases and you also have state on your UI.</p>
+
+<p>You would never think about <code>deleting an email</code>, and after than <code>sending the email</code>, that's an invalid generated sequence of commands(relative to the "email composing state").</p>
+
+<p>This last example is exactly the one described by <a href="https://www.youtube.com/watch?v=HXGpBrmR70U">Ashton Kemerling</a> from Pivotal, they're using <code>test.check</code> to randomly generate test scenarios for the UI. And because test.check doesn't have the <em>finite state machine modeling thing</em>, they ended up generating impossible or invalid action sequences, and having to discard them as <code>NO-OPs</code> when run.</p>
+
+<h2>FSM Behavior</h2>
+
+<p>The problem with Ashton's approach for my situation, was that I had this possibly long sequence of commands or transactions, where each transaction modifies the state of the system, so the last one probable makes no sense at all without some of the <em>in-the-middle</em> ocurring transactions.</p>
+
+<p>The problem is not only discarding invalid sequences, but how to generate something valid <em>at all</em>.</p>
+
+<p>Say you have 3 possible actions:</p>
+
+<ul>
+<li>add <code>[id, name]</code></li>
+<li>edit <code>[id, name]</code></li>
+<li>delete <code>[id]</code></li>
+</ul>
+
+
+<p>If the command sequence you generate is:</p>
+
+<p><code>clojure
+[{:type :add :name "John" :id 1}
+ {:type :add :name "Ted" :id 84}
+ {:type :delete :id 1}]
+</code></p>
+
+<p>The <code>delete</code> action depends on two things:</p>
+
+<ol>
+<li>Someone to be already added (as in the circular buffer described above).</li>
+<li>Selecting a valid <code>id</code> for deletion from the ones already added.</li>
+</ol>
+
+
+<p>It looks like something you would do using <code>bind</code>, but there's something more, there's a <code>state</code> that changes when each transaction is applied, and affects each potential command that may be generated afterwards.</p>
+
+<p>Searching around, I found a document titled <a href="http://www.diva-portal.org/smash/get/diva2:343744/FULLTEXT01.pdf">Verifying Finite State Machine Behavior Using QuickCheck Eqc_fsm</a> by Ida Lindgren and Robin Malmros, it's an evaluation from <em>Uppsala Universitet</em> to understand whether QuickCheck is suitable for testing mobile telephone communications with base transceiver stations.</p>
+
+<p>Besides the evaluation itself which is worth reading, there's a chapter on Finite State Machines I used as guide to implement something similar with <code>test.check</code>.</p>
+
+<h2>The Command protocol</h2>
+
+<p>There's a nice diagram in the paper representing the Erlang's finite state machine flow</p>
+
+<p><img class="center" src="/images/blog/fsmflow.png" width="680" height="780" title="'QuickCheck FSM Flow'" ></p>
+
+<p>We observe a few things:</p>
+
+<ul>
+<li>You have a set of possible commands to generate.</li>
+<li>Each command has a precondition to check validity against current state.</li>
+<li>Each command affects state in some way, generating a new-state.</li>
+</ul>
+
+
+<p>Translating that ideas into Clojure we can model a command protocol</p>
+
+<p><code>clojure
+(defprotocol Command
+  (precondition [this state] "Returns true if command can be applied in current system state")
+  (exec [this state cmd] "Applies generated command to the specified system state, returns new state")
+  (generate [this state] "Generates command given the current system state, returns command generator"))
+</code></p>
+
+<p>So far, we've assumed nothing about:</p>
+
+<ul>
+<li>How state is going to be modeled.</li>
+<li>What structure each generated command has.</li>
+</ul>
+
+
+<p><strong>Since we're using <code>test.check</code> we need a particular protocol function <code>generate</code> returning the command generator.</strong></p>
+
+<h2>A Command generator</h2>
+
+<p>Having a protocol, lets define our <code>add</code>, <code>edit</code> and <code>delete</code> transactions.</p>
+
+<p>Questions to answer are:</p>
+
+<ol>
+<li>What will our model of the world look like?</li>
+<li>What's the initial and expected states after applying each transaction?</li>
+</ol>
+
+
+<p>Our expected state will be something like this:</p>
+
+<p>```clojure
+{:people [{:name "John" :id 1}</p>
+
+<pre><code>      {:name "Ted" :id 84}
+      {:name "Tess" :id 22}]}
+</code></pre>
+
+<p>```</p>
+
+<p>So our <code>add</code> transaction will be:</p>
+
+<p>```clojure
+(def add-cmd
+  (reify</p>
+
+<pre><code>Command
+(precondition [_ state]
+  (vector? (:people state)))
+
+(exec [_ state cmd]
+  (update-in state [:people] (fn [people]
+                               (conj people
+                                     (dissoc cmd :type)))))
+(generate [_ state]
+  (gen/fmap (partial zipmap [:type :name :id])
+            (gen/tuple (gen/return :add)
+                       (gen/not-empty gen/string-alphanumeric)
+                       gen/int))))))
+</code></pre>
+
+<p>```</p>
+
+<p>The highlights:</p>
+
+<ul>
+<li>Our only precondition is to have a vector to <code>conj</code> the transaction into.</li>
+<li>The <code>generate</code> function returns a standard <code>test.check</code> generator for the command.</li>
+<li>The <code>exec</code> function applies the generated command to the current system state and returns a new state.</li>
+</ul>
+
+
+<p>Now, what's interesting is the <code>delete</code> transaction:</p>
+
+<p>```clojure
+(def delete-cmd
+  (reify</p>
+
+<pre><code>Command
+(precondition [_ state]
+  (seq (:people state)))
+
+(exec [_ state cmd]
+  (update-in state [:people] (fn [people]
+                               (vec (filter #(not= (:id %)
+                                                   (:id cmd))
+                                            people)))))
+
+(generate [_ state]
+  (gen/fmap (partial zipmap [:type :id])
+            (gen/tuple (gen/return :delete)
+                       (gen/elements (mapv :id (:people state))))))))
+</code></pre>
+
+<p>```</p>
+
+<p>Note the differences:</p>
+
+<ul>
+<li><code>delete</code> can only be executed if the people list actually has <em>someone</em> inside</li>
+<li>The generator selects to delete an <code>id</code> from the people in the current state (using <code>gen/elements</code> selector)</li>
+<li>Applying the command implies removing the selected person from the next state.</li>
+</ul>
+
+
+<h2>Valid sequence generator</h2>
+
+<p>So how do we generate a sequence of commands giving a command list?</p>
+
+<p>This is a recursive approach, that receives the available commands and the sequence size to generate:</p>
+
+<p>```clojure
+(defn command-seq
+  [state commands size]
+  (gen/bind (gen/one-of (->> (map second commands)</p>
+
+<pre><code>                         (filter #(precondition % state))
+                         (map #(generate % state))))
+        (fn [cmd]
+          (if (zero? size)
+            (gen/return [cmd])
+            (gen/fmap
+             (partial concat [cmd])
+             (command-seq (exec (get commands (:type cmd)) state cmd)
+                          commands
+                          (dec size)))))))
+</code></pre>
+
+<p>```</p>
+
+<p>The important parts being:</p>
+
+<ul>
+<li>Selects only one valid command to generate with <code>one-of</code> after filtering preconditions.</li>
+<li>If command sequence size is <code>0</code> just finish, otherwise recursively concat the rest of the sequence.</li>
+<li>The new state is updated in the step <code>(exec (get commands (:type cmd)) state cmd)</code>, where we need to retrieve the original command object.</li>
+</ul>
+
+
+<p>If you would like to generate random sequence sizes, just bind it with <code>gen/choose</code>.</p>
+
+<p>```clojure
+(gen/bind (gen/choose 0 10)</p>
+
+<pre><code>      (fn [num-elements]
+        (command-seq {:people []} 
+                     {:add-cmd add-cmd
+                      :delete-cmd delete-cmd}  
+                     num-elements)))
+</code></pre>
+
+<p>```</p>
+
+<p>Note the initial state is set to <code>{:people []}</code> for the <code>add</code> command precondition to succeed.</p>
+
+<p>If we generate 3 samples now, it looks good, but there's still a problem....</p>
+
+<p><code>clojure
+(({:id 0, :name "C", :type :add-cmd}
+  {:id 0, :name "2", :type :add-cmd}
+  {:id 0, :name "xi", :type :add-cmd}
+  {:id 0, :name "p", :type :add-cmd}
+  {:id 0, :type :delete-cmd}
+  {:id 0, :name "3Q", :type :add-cmd}
+  {:id 0, :name "9", :type :add-cmd}
+  {:id 0, :type :delete-cmd})
+ ({:id -1, :name "H", :type :add-cmd}
+  {:id -1, :type :delete-cmd}
+  {:id 1, :name "q", :type :add-cmd}
+  {:id 0, :name "F", :type :add-cmd}
+  {:id 1, :type :delete-cmd})
+ ({:id -1, :name "fY", :type :add-cmd}
+  {:id 0, :name "a", :type :add-cmd}
+  {:id -1, :type :delete-cmd}
+  {:id 2, :name "u", :type :add-cmd}
+  {:id 2, :type :delete-cmd}
+  {:id 1, :name "7", :type :add-cmd}
+  {:id -1, :name "E", :type :add-cmd}
+  {:id 1, :type :delete-cmd}
+  {:id 0, :type :delete-cmd}
+  {:id -1, :type :delete-cmd}))
+</code></p>
+
+<p>Each <code>add-cmd</code> is repeating the <code>id</code>, since it's generating it without checking the current state, let's change our <code>add</code> transaction generator</p>
+
+<p>```clojure
+(generate [_ state]</p>
+
+<pre><code>      (gen/fmap (partial zipmap [:type :name :id])
+                (gen/tuple (gen/return :add-cmd)
+                           (gen/not-empty gen/string-alphanumeric)
+                           (gen/such-that #(-&gt; (mapv :id (:people state))
+                                               (contains? %)
+                                               not)
+                                          gen/int))))
+</code></pre>
+
+<p>```</p>
+
+<p>Now the <code>id</code> field generator checks that the generated <code>int</code> doesn't belong to the current ids in the state (we could have returned a <code>uuid</code> or something else, but it wouldn't make the case for state-dependent generation)</p>
+
+<p>To complete the example we need:</p>
+
+<ul>
+<li>To apply the commands to the system under test.</li>
+<li>A way to retrieve the system state.</li>
+<li>Comparing the final system state with our final generated expected state.</li>
+</ul>
+
+
+<p>Which is pretty straightforward, so we'll talk about shrinking first.</p>
+
+<h2>Shrinking the sequence</h2>
+
+<p>If you were to found a failing command sequence using the code above, you would quickly realize it doesn't shrink properly.</p>
+
+<p>Since we're generating the sequence composing <code>bind</code>, <code>fmap</code> and <code>concat</code> and not using the internal <code>gen/vector</code> or <code>gen/list</code> generators, the generated sequence doesn't know how to shrink itself.</p>
+
+<p>If you read <a href="http://reiddraper.com/writing-simple-check/">Reid's account</a> on writing <code>test.check</code>, there's a glimpse of the problem we face, shrinking depends on the generated data type. So a generated <code>int</code> knows how to shrink itself, which is different on how a <code>vector</code> shrinks itself.</p>
+
+<p>If you combine existing generators, you get shrinking for free, but since we're generating our sequence recursively with <code>concat</code> we've lost the <code>vector</code> type shrinking capability.</p>
+
+<p>And there's a good reason it is so, but let's first see how shrinking works in <code>test.check</code>.</p>
+
+<h3>Rose Trees</h3>
+
+<p><code>test.check</code> complects the data generation step with the shrinking of that data. So when you generate some value, behind the scenes all the alternative shrinked scenarios are also generated.</p>
+
+<p>Let's sample an int vector generator:</p>
+
+<p><code>clojure
+(gen/sample (gen/not-empty (gen/vector gen/int)) 5)
+=&gt; ([0] [1] [-1 1] [1 1 -3] [2 3])
+</code></p>
+
+<p>The <code>sample</code> function is hiding from you the alternatives and showing only the actual generated value.</p>
+
+<p>But, if we call the generator using <code>call-gen</code>, we have a completely different structure:</p>
+
+<p><code>clojure
+(gen/call-gen (gen/not-empty (gen/vector gen/int)) (gen/random) 1)
+=&gt; [[1] ([[0] ()])]
+</code></p>
+
+<p>What we have is a <a href="http://en.wikipedia.org/wiki/Rose_tree">rose tree</a>, which is a <code>n-ary</code> tree, where each tree node may have any number of childs.</p>
+
+<p><code>test.check</code> uses a very simple modeling approach for the tree, in the form of <code>[parent childs]</code>.</p>
+
+<p>So this tree</p>
+
+<p><img class="center" src="/images/blog/rosetree.png" width="340" height="390" title="'Rose Tree'" ></p>
+
+<p>Is represented as</p>
+
+<p>```clojure
+[1 [[2 []]</p>
+
+<pre><code>[3 []]]]
+</code></pre>
+
+<p>```</p>
+
+<p>Everytime you get a generated value, what you're looking at is at the root of the tree obtained with <code>rose/root</code>, which is exactly what <code>gen/sample</code> is doing.</p>
+
+<p>```clojure
+(require '[clojure.test.check.rose-tree :as rose])</p>
+
+<p>(rose/root (gen/call-gen (gen/not-empty (gen/vector gen/int)) (gen/random) 1))
+=> <a href="/blog/2015/04/12/property-based-testing-using-quickcheck/">0</a>
+```</p>
+
+<p>The shrinking tree you would expect for a generated vector is:</p>
+
+<p><img class="center" src="/images/blog/vectorshrinktree.png" width="680" height="780" title="'Vector rose tree'" ></p>
+
+<p>The more deep inside the tree, the more shrunk the value is. So for instance <code>integers</code> shrink up to zero, and <code>vectors</code> randomly remove elements until nothing is left.</p>
+
+<p><strong>If we were to actually look inside the shrunk vector tree, it would also include the shrunked integers, but you get the idea.</strong></p>
+
+<h2>Shrinking a valid command sequence</h2>
+
+<p>I said before our sequence doesn't shrink since it's generated recursively, so this is how our sequence tree looks like so far.</p>
+
+<p><img class="center" src="/images/blog/singlenodecmdtree.png" width="340" height="390" title="'Single node command tree'" ></p>
+
+<p>But even if we were using the vector shrinker we would end up with something like this:</p>
+
+<p><img class="center" src="/images/blog/invalidcmdtree.png" width="680" height="780" title="'Invalid command tree'" ></p>
+
+<p>Since the vector shrinker doesn't really know what a valid command sequence looks like, it will just do a random permutation of commands, ending up with many invalid sequences (like <code>[{:add 1} {:delete 2}]</code>).</p>
+
+<p>We will need a custom shrinker, that shrinks only valid command sequences, with a resulting tree like this one:</p>
+
+<p><img class="center" src="/images/blog/validcmdtree.png" width="680" height="780" title="'Valid command tree'" ></p>
+
+<p>To do that, we will modify our protocol to add a new function <code>postcondition</code>.</p>
+
+<p><code>clojure
+(defprotocol Command
+  (precondition [this state] "Returns true if command can be applied in current system state")
+  (exec [this state cmd] "Applies generated command to the specified system state, returns new state")
+  (generate [this state] "Generates command given the current system state, returns command generator"))
+  (postcondition [this state cmd] "Returns true if cmd can be applied on specified state"))
+</code></p>
+
+<p><code>postcondition</code> will be called while shrinking, in order to validate if a shirking sequence is valid for the hipotetical state generated by the previous commands.</p>
+
+<p>Another important function is <code>gen/pure</code>, which allows to return our custom rose tree as generator result.</p>
+
+<p>So this is how our command generator looks like now:</p>
+
+<p>```clojure
+(defn cmd-seq
+  [state commands]
+  (gen/bind (gen/choose 0 10)</p>
+
+<pre><code>        (fn [num-elements]
+          (gen/bind (cmd-seq-helper state commands num-elements)
+                    (fn [cmd-seq]
+                      (let [shrinked (shrink-sequence (mapv first cmd-seq)
+                                                      (mapv second cmd-seq))]
+                        (gen/gen-pure shrinked)))))))
+</code></pre>
+
+<p>(defn cmd-seq-helper
+  [state commands size]
+  (gen/bind (gen/one-of (->> (map second commands)</p>
+
+<pre><code>                         (filter #(precondition % state))
+                         (map #(generate % state))))
+        (fn [cmd]
+          (if (zero? size)
+            (gen/return [[cmd state]])
+            (gen/fmap
+             (partial concat [[cmd state]])
+             (cmd-seq-helper (exec (get commands (:type cmd)) state cmd)
+                             (map second commands)
+                             (dec size)))))))
+</code></pre>
+
+<p>```</p>
+
+<p>We see two different things here:</p>
+
+<ol>
+<li>Generator also returns the state for that particular command.</li>
+<li>There's a call to <code>shrink-sequence</code> that generates the rose tree given the command sequence and intermediate states.</li>
+</ol>
+
+
+<p>The <code>shrink-sequence</code> function being:</p>
+
+<p>```clojure
+(defn shrink-sequence
+  [cmd-seq state-seq]
+  (letfn [(shrink-subseq [s]</p>
+
+<pre><code>        (when (seq s)
+          [(map #(get cmd-seq %) s)
+           (-&gt;&gt; (remove-seq s)
+                (filter (partial valid-sequence? state-seq cmd-seq))
+                (mapv shrink-subseq))]))]
+(shrink-subseq (range 0 (count cmd-seq)))))
+</code></pre>
+
+<p>```</p>
+
+<p>Highlights:</p>
+
+<ul>
+<li>Returns a rose tree in the form <code>[parent childs]</code>.</li>
+<li><code>remove-seq</code> generates a sequence of subsequences with only one element removed.</li>
+<li><code>valid-sequence?</code> uses <code>postcondition</code> to validate the shrinked seq.</li>
+<li>Recursively shrinks the shrunk childs until nothing's left.</li>
+</ul>
+
+
+<h2>Putting all together</h2>
+
+<p>I've put together a running sample for you to check out <a href="https://github.com/guilespi/fsm-test-check/blob/master/src/fsm_test_check/core.clj">here</a>.</p>
+
+<p>There's only one property defined: <em>applying all the generated transactions should return true</em>, but it fails when there are two delete commands present.</p>
+
+<p>```clojure
+(defn apply-tx
+  "Apply transactions fails when there are two delete commands"
+  [tx-log]
+  (->> tx-log</p>
+
+<pre><code>   (filter #(= :delete-cmd (:type %)))
+   count
+   (&gt; 2)))
+</code></pre>
+
+<p>(def commands-consistent-apply
+  (prop/for-all [tx-log (cmd-seq {:people []} {:add-cmd add-cmd :delete-cmd delete-cmd})]</p>
+
+<pre><code>            (true? (apply-tx tx-log))))
+</code></pre>
+
+<p>```</p>
+
+<p>```
+(tc/quick-check 10 commands-consistent-apply)
+=></p>
+
+<p>{:result false, :seed 1428695347616, :failing-size 7, :num-tests 8,
+ :fail [({:id 6, :name "8", :type :add-cmd}</p>
+
+<pre><code>     {:id -4, :name "KvoOq", :type :add-cmd} 
+     {:id -6, :name "hWn", :type :add-cmd} 
+     {:id 6, :type :delete-cmd} 
+     {:id -4, :type :delete-cmd})], 
+</code></pre>
+
+<p> :shrunk {:total-nodes-visited 55, :depth 16, :result false,</p>
+
+<pre><code>      :smallest [({:id 0, :name "0", :type :add-cmd} 
+                  {:id -2, :name "2", :type :add-cmd} 
+                  {:id 0, :type :delete-cmd} 
+                  {:id -2, :type :delete-cmd})]}}
+</code></pre>
+
+<p>```</p>
+
+<p>If you look closely the failing test case has three <code>add</code> commands, but when shrunk only two needed in order to fail appear.</p>
+
+<p>Have fun!</p>
+
+<p>I'm <a href="https://twitter.com/guilespi">guilespi</a> on Twitter.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Property-based testing using QuickCheck]]></title>
+    <link href="http://guilespi.github.com/blog/2015/04/12/property-based-testing-using-quickcheck/"/>
+    <updated>2015-04-12T17:05:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2015/04/12/property-based-testing-using-quickcheck</id>
+    <content type="html"><![CDATA[<p>Last year I attended <a href="https://www.youtube.com/playlist?list=PLZdCLR02grLp__wRg5OTavVj4wefg69hM">Clojure/West</a> in San Francisco, and was lucky enough to be at the talk by <a href="http://www.cse.chalmers.se/~rjmh/">John Hughes</a>, called <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q">Testing the hard stuff and staying sane</a>.</p>
+
+<p>I had been previously exposed to some of the concepts of generative testing, particularly Haskell's own QuickCheck, but never took the time to do something with it, this talk by John Hughes really stroke a chord on the usefulness of generative -or property based- testing, and how much effort you can save by knowing when and <em>how</em> to use it.</p>
+
+<p>I've been using Clojure <code>test.check</code> for a while, and since I'm preparing a <a href="http://testing.uy">conference talk</a> on the subject, I decided to write something about it.</p>
+
+<p>So bear with me, in this two-entry blog post I'll try to convince you why down the road, it may save your ass too.</p>
+
+<h2>What generative testing is not</h2>
+
+<p>Probably the reason I've always looked down upon generative testing, was thinking it was just about random/junk data generation, for the too-lazy-to-think-your-own-test-cases kind of attitude.</p>
+
+<p>Well, that's <strong>not</strong> what generative testing is about.</p>
+
+<p>You <em>will</em> have data generators for some input domain values, but trying to generate random noise to make the program fail is just <a href="http://en.wikipedia.org/wiki/Fuzz_testing">fuzzy testing</a>, and generative testing is more than that.</p>
+
+<p>How?</p>
+
+<h2>On Types vs. Tests</h2>
+
+<p><a href="http://blog.guillermowinkler.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/">I've written before</a> about the difficulty of using types to prove your program is correct. Some people will always say you can do it with type systems(and types even more complex than the program under proof), and you can <a href="https://coq.inria.fr/a-short-introduction-to-coq">always use Coq</a>.</p>
+
+<p>But for everyday programming languages and type systems it's not that easy, say for instance this <code>Java</code> function (assuming such thing exists).</p>
+
+<p>```java
+int f1(int x) {</p>
+
+<pre><code>return 1/x;
+</code></pre>
+
+<p>}
+```</p>
+
+<p>You can say just by looking at the function, that any integer except zero will succeed.</p>
+
+<p>In this other case:</p>
+
+<p>```java
+int f2(String x) {</p>
+
+<pre><code>return x.length();
+</code></pre>
+
+<p>}
+```</p>
+
+<p>The function will succeed except when <code>x</code> is <code>null</code>.</p>
+
+<p>So assuming that's expected behavior, you can write some tests to check on those special failure cases.</p>
+
+<p>```java
+@Test(expected=ArithmeticException.class)
+public void testDivideByZero() {</p>
+
+<pre><code>f1(null);
+</code></pre>
+
+<p>}</p>
+
+<p>//this is just a unit test
+@Test
+public void testUnity() {</p>
+
+<pre><code>assertEquals(1, f1(1));
+</code></pre>
+
+<p>}</p>
+
+<p>@Test(expected=NullPointerException.class)
+public void testNullPointerException() {</p>
+
+<pre><code>f2(null);
+</code></pre>
+
+<p>}
+```</p>
+
+<p>But for the sake of making and argument, assume you're testing <code>openssl</code> and this is the function you have...</p>
+
+<p>```c
+int dtls1_process_heartbeat(SSL *s)</p>
+
+<pre><code>{
+... 
+/* Read type and payload length first */
+if (1 + 2 + 16 &gt; s-&gt;s3-&gt;rrec.length)
+    return 0; /* silently discard */
+hbtype = *p++;
+n2s(p, payload);
+if (1 + 2 + payload + 16 &gt; s-&gt;s3-&gt;rrec.length)
+    return 0; /* silently discard per RFC 6520 sec. 4 */
+pl = p;
+
+if (hbtype == TLS1_HB_REQUEST)
+    {
+    unsigned char *buffer, *bp;
+    unsigned int write_length = 1 /* heartbeat type */ +
+                    2 /* heartbeat length */ +
+                    payload + padding;
+    int r;
+
+    if (write_length &gt; SSL3_RT_MAX_PLAIN_LENGTH)
+        return 0;
+
+    /* Allocate memory for the response, size is 1 byte
+     * message type, plus 2 bytes payload length, plus
+     * payload, plus padding
+     */
+    buffer = OPENSSL_malloc(write_length);
+    bp = buffer;
+
+    /* Enter response type, length and copy payload */
+    *bp++ = TLS1_HB_RESPONSE;
+    s2n(payload, bp);
+    memcpy(bp, pl, payload);
+    bp += payload;
+    /* Random padding */
+    RAND_pseudo_bytes(bp, padding);
+...
+</code></pre>
+
+<p>```</p>
+
+<p>Unless you've been living under a rock, you should have heard about <a href="http://heartbleed.com/">the heartbleed openssl bug</a>, and it's just what you think, the bug was in the heartbeat processing function above, and <a href="http://git.openssl.org/gitweb/?p=openssl.git;a=commitdiff;h=96db902">this is the patch with the fix</a>.</p>
+
+<p><img class="center" src="/images/blog/opensslpatch.png" width="680" height="780" title="'Openssl heartbleed patch'" ></p>
+
+<p>Who was the motherfucker that missed that unit test, huh?</p>
+
+<p>When the function logic is more complex, it's exponentially more difficult to define both types and tests that make us feel more confident about pushing our nasty bits of code to a production environment.</p>
+
+<p>And that's because the possible states our system or function can be, expand like hell when new variables and conditional branches are added (more on this later).</p>
+
+<h2>Code Coverage vs. Domain Coverage</h2>
+
+<p>Looking at the function above you can see the problem is not on some untested code path, but on some <em>values</em> used on function invocation.</p>
+
+<p>Some people aim for 100% code coverage, according to <a href="http://en.wikipedia.org/wiki/Code_coverage">Wikipedia</a></p>
+
+<p><em>In computer science, code coverage is a measure used to describe the degree to which the source code of a program is tested by a particular test suite. A program with high code coverage has been more thoroughly tested and has a lower chance of containing software bugs than a program with low code coverage.</em></p>
+
+<p>Which is great, but since you can have 100% code coverage of the <code>1/x</code> function, but regarding domain coverage (for which values of <code>x</code> the function works as expected) you have nothing.</p>
+
+<p><strong>Code coverage without domain coverage is just half the picture.</strong></p>
+
+<p>Even unit tests prove <em>almost</em> nothing.</p>
+
+<h2>Tests do not prove correctness</h2>
+
+<p>There's a great quote by <a href="http://en.wikiquote.org/wiki/Edsger_W._Dijkstra">Edsger Dijkstra</a> from Notes on Structured Programming that says</p>
+
+<p><em>Program testing can be used to show the presence of bugs, but never to show their absence!</em></p>
+
+<p>Which is to say, no matter how many unit tests you write, you're only proving that your program works (or fails) for the set of inputs you have selected when writing your tests.</p>
+
+<p>It doesn't say a thing about the generalities or about a general property of the system or function under test.</p>
+
+<h2>What is generative testing?</h2>
+
+<p>So what <em>is</em> generative testing?</p>
+
+<p>In generative testing you describe some properties your system or function must comply with, and the test runner provides randomized data to check if the property holds for that data, that's why it's also known as <code>property-based</code> testing.</p>
+
+<p>A <code>property</code> is a high-level specification of behavior that should hold for a range of data points.</p>
+
+<p>So a property works somewhat like a <em>domain iterator</em>, bringing a little bit closer types and tests.</p>
+
+<p>Since you're defining how the system should behave for a particular <em>domain</em> of values, not when the program is compiled, but when it's <strong>run</strong>.</p>
+
+<h2>Why random data generation is important?</h2>
+
+<p>In the StrangeLoop 2014 conference, Joe Armstrong gave a talk called <a href="https://www.youtube.com/watch?v=lKXe3HUG2l4">The mess we're in</a>, where he discussed system's complexity, go watch it since it's real fun.</p>
+
+<p>He says that a <code>C</code> program with only six <code>32 bit</code> integers, has the same number of states that atoms exist on the planet, so testing your program by computing all combinations it's going to take a <em>really long</em> time.</p>
+
+<p>And if it's almost impossible to find the number of states computationally, imagine trying to find the number of possible failing states <em>manually</em>.</p>
+
+<p>I've been in the position of having to hunt a bug that occurs only once a year in a system processing millions of transactions daily, and it's not fun at all. Pray to the logging gods the proper piece of information revealing the culprit is logged, so you don't have to wait another year for the bug to show up.</p>
+
+<p>If your software runs inside a car, would you wait for the next deadly crash to analyze that dead-driver log file? Maybe that's why <a href="http://www.quviq.com/volvo-quickcheck/">Volvo uses QuickCheck</a> to test embedded systems.</p>
+
+<p>Generative testing helps you put and test your system in so many different states it would be impossible to do manually.</p>
+
+<h2>What's in a property</h2>
+
+<p>So, should we throw away all of our type systems and unit tests?</p>
+
+<p>Not so fast, property based testing is not a <strong>replacement</strong> for types nor for unit tests.</p>
+
+<p>Haskell and Scala both have their frameworks for property based testing (QuickCheck and ScalaTest) and are strongly typed languages.</p>
+
+<p>Property based testing helps us define considerations for our programs where type systems do not reach, and where dynamically typed languages have a void.</p>
+
+<p>So what does a property look like?</p>
+
+<p>All concepts so far hold true for any language with a generative testing framework, many re-implementations exist from the <a href="http://en.wikipedia.org/wiki/QuickCheck">original QuickCheck version</a>, from <code>C</code>, <code>C++</code>, <code>Ruby</code>, <code>Clojure</code>, <code>Javascript</code>, <code>Java</code>, <code>Scala</code>, etc. So now I will show you a couple of examples in different languages, just for you to grasp the basic property definition semantics, which is quite similar along the implementations.</p>
+
+<p>These examples are not meant to show how powerful generative testing can be, yet.</p>
+
+<h3>Sorting in Javascript</h3>
+
+<p>Let's say you want to test a <code>sort</code> function of yours, and instead of specifying individual test cases for particular arrays of integers, you define a property, which says that after sorting the array, the last element should always be greater than the first one.</p>
+
+<p>This is what the property looks like in Javascript's <a href="www.jscheck.org">JSCheck</a></p>
+
+<p>```javascript
+JSC.reps(10)
+JSC.test(</p>
+
+<pre><code>"First is lower than last after sort",
+function (verdict, v) {
+    var sorted = v.sort();
+    return verdict(sorted[0] &lt; sorted[sorted.length - 1]);
+},
+[
+    JSC.array([JSC.integer()]])
+]
+</code></pre>
+
+<p>);
+```
+You don't say which particular arrays, just any array of integers must comply with the property, the framework will generate values for you (in this case 10 repetitions will be run).</p>
+
+<p>This is the result:</p>
+
+<p><code>
+First is lower than last after sort: 10 cases tested, 0 pass, 10 fail
+ FAIL [1] ([3])
+ FAIL [2] ([5])
+ FAIL [3] ([7])
+</code></p>
+
+<p>Did you spot when the property doesn't hold?</p>
+
+<h3>Sorting in Clojure</h3>
+
+<p>This is what the same property looks like in Clojure's <a href="https://github.com/clojure/test.check">test.check</a>.</p>
+
+<p>```clojure
+(def prop-sorted-first-less-than-last
+  (prop/for-all [v (gen/not-empty (gen/vector gen/int))]</p>
+
+<pre><code>(let [s (sort v)]
+  (&lt; (first s) (last s)))))
+</code></pre>
+
+<p>(tc/quick-check 200 prop-sorted-first-less-than-last)
+```</p>
+
+<p>With the following result:</p>
+
+<p>```clojure
+   => {:result false, :failing-size 0, :num-tests 1, :fail [<a href="http://blog.guillermowinkler.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/">3</a>],</p>
+
+<pre><code>   :shrunk {:total-nodes-visited 5, :depth 2, :result false,
+            :smallest [[0]]}}
+</code></pre>
+
+<p>```</p>
+
+<p>As you see, <strong>both fail</strong>, since they doesn't hold for single element arrays.</p>
+
+<p>The basic semantic for both languages is the same, you need:</p>
+
+<ul>
+<li>A property name (or claim in JSCheck)</li>
+<li>Some data generator for your input values</li>
+<li>A verdict or testing function who validates the property</li>
+</ul>
+
+
+<p><blockquote><p>This encourages a higher level approach to testing in the form of abstract invariant functions should satisfy universally.</p><footer><strong>http://book.realworldhaskell.org/read/testing-and-quality-assurance.html</strong></footer></blockquote></p>
+
+<h2>Shrinking</h2>
+
+<p>One of the best features of QuickCheck is the ability to shrink your failure cases to the minimum failing case (not all the implementations have it by the way).</p>
+
+<p>When generating random data, you may end up with a failing case too big to rationalize (for instance a thousand elements vector), but it doesn't necessarily means that all the 1000 elements are needed for the function under test to fail.</p>
+
+<p>When QuickCheck finds a failing case, it tries to shrink the input data to the <em>smallest</em> failing case.</p>
+
+<p>This is a powerful feature if you don't want to repeat many unnecessary steps in order to reproduce a problem.</p>
+
+<p>A simple example to illustrate the feature comes from <code>test.check</code> samples.</p>
+
+<p>Here a property must hold for all integer vectors, and it is that no vector should have the element <code>42</code> in it.</p>
+
+<p>```clojure
+(def prop-no-42
+  (prop/for-all [v (gen/vector gen/int)]</p>
+
+<pre><code>(not (some #{42} v))))
+</code></pre>
+
+<p>```</p>
+
+<p>When the tests are run, <code>test.check</code> find a failing case being the vector <code>[10 1 28 40 11 -33 42 -42 39 -13 13 -44 -36 11 27 -42 4 21 -39]</code>, which is <strong>not</strong> the minimum failing case.</p>
+
+<p>```clojure
+(tc/quick-check 100 prop-no-42)
+;; => {:result false,</p>
+
+<pre><code>   :failing-size 45,
+   :num-tests 46,
+   :fail [[10 1 28 40 11 -33 42 -42 39 -13 13 -44 -36 11 27 -42 4 21 -39]],
+   :shrunk {:total-nodes-visited 38,
+            :depth 18,
+            :result false,
+            :smallest [[42]]}}
+</code></pre>
+
+<p>```</p>
+
+<p>So it starts shrinking the failing case until it reaches the smallest vector for which the property doesn't hold, which is <code>[42]</code>.</p>
+
+<p>Unfortunately <code>JSCheck</code> doesn't shrink the failure cases, but <a href="http://jsverify.github.io/">jsverify</a> does, so if you want some shrinking on Javascript give it a try.</p>
+
+<h2>Final thoughts</h2>
+
+<p>Since QuickCheck depends on generators to cover the domain, we need to consider those domains may be infinite or very large, so it may be impossible to find the offending failure cases. None the less, we know that by running long enough or a large enough number of tests, we have better odds of finding a problem.</p>
+
+<p>Regarding the name, <code>property-based</code> testing is a much better name than <code>generative</code> testing, since the later gives the idea that it's about generating data, when it's truly about function and system properties.</p>
+
+<p>The higher level approach of property definition, coupled with the data generation and shrinking features provided by QuickCheck, really helps the case of having something more closer to <em>proofs</em> about how your system behaves.</p>
+
+<p>In the next post I'll write about finite state machine testing using <code>test.check</code> and show more complex examples, stay tuned.</p>
+
+<p>I'm <a href="https://twitter.com/guilespi">guilespi</a> on Twitter, reach out!</p>
+]]></content>
+  </entry>
+  
+</feed>
