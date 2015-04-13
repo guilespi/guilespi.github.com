@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
 
-  <title><![CDATA[Category: Clojure | Interrupted]]></title>
-  <link href="http://guilespi.github.com/blog/categories/clojure/atom.xml" rel="self"/>
+  <title><![CDATA[Interrupted - Clojure]]></title>
+  <link href="http://guilespi.github.com/atom.xml" rel="self"/>
   <link href="http://guilespi.github.com/"/>
   <updated>2015-04-13T10:49:24-03:00</updated>
   <id>http://guilespi.github.com/</id>
@@ -14,1381 +14,1404 @@
 
   
   <entry>
-    <title type="html"><![CDATA[Decompiling Clojure III, Graph all the things]]></title>
-    <link href="http://guilespi.github.com/blog/2014/04/27/decompiling-clojure-iii/"/>
-    <updated>2014-04-27T23:15:00-03:00</updated>
-    <id>http://guilespi.github.com/blog/2014/04/27/decompiling-clojure-iii</id>
-    <content type="html"><![CDATA[<p>This is the third entry in the Decompiling Clojure series.</p>
+    <title type="html"><![CDATA[Verifying state machine behavior using test.check]]></title>
+    <link href="http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check/"/>
+    <updated>2015-04-12T17:21:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2015/04/12/verifying-state-machine-behavior-using-test-dot-check</id>
+    <content type="html"><![CDATA[<p>My <a href="http://guilespi.github.com/blog/2015/04/12/property-based-testing-using-quickcheck/">previous post</a> was an introduction to the motivations and benefits of a <code>property-based</code> testing approach.</p>
 
-<p><a href="http://blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">In the first post</a> I showed what Clojure looks like in bytecode, and in <a href="http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/">the second post</a> I did a quick review of the Clojure compiler and its code generation strategies.</p>
+<p>I also mentioned the <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q">John Hughes</a> talk, which is great.</p>
 
-<p>In this post I'll go deeper in the decompiling process.</p>
+<p>But there&#8217;s a catch.</p>
 
-<h2>What is decompiling?</h2>
+<p>Until now, we&#8217;ve been considering <code>property-based</code> testing in a <em>functional way</em>, where properties for functions depend only on the function input, assuming no <em>state</em> between function invocations.</p>
 
-<p>Decompilers do not usually reconstruct the original source code, since many information meant to be read by humans (for instance comments)
-is lost in the compilation process, where stuff is meant to be read only by machines, <code>JVM</code> bytecode in our case.</p>
+<p>But that&#8217;s not always the case, sometimes our function inserts data into some database, sends an email, or sends a message to the car anti-lock braking system.</p>
 
-<p>So by decompiling I mean going from lower level bytecode, to some higher level code, it doesn't even need to be Clojure,
-we already know from the last post that Clojure compiler loses all macro information, so special heuristics will be needed when trying to reconstruct them.</p>
+<p>The examples John mentions in his talk are not straightforward to solve without Erlang&#8217;s QuickCheck, since they&#8217;re verifying <em>state machines</em> behavior.</p>
 
-<p>For instance, it's possible for <code>let</code> and <code>if</code> special forms, to be re-created using code signatures.(Think pattern matching applied to code graphs)</p>
+<p>Since I&#8217;m a Clojurist, I was <a href="https://twitter.com/guilespi/status/566315813268111360">a little confused</a> about why I couldn&#8217;t find a way to do that state machine magic using <code>test.check</code>, so bugging Reid and not reading the fine manual was the evident answer.</p>
 
-<h2>Decompiling goal</h2>
+<p>Thing is, test.check has this strategy of composing generators, particularly using <code>bind</code> you can generate a value based on a previously generated value by another generator.</p>
 
-<p>As I've said in my previous post:</p>
+<p>For instance, this example shows how to generate a <code>vector</code> and then select an element from it:</p>
 
-<p><blockquote><p>What use do I have for a line based debugger with Clojure?</p><footer><strong>guilespi</strong> <cite><a href='http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/'>blog.guillermowinkler.com/blog/&hellip;</a></cite></footer></blockquote></p>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">keyword-vector</span> <span class="p">(</span><span class="nf">gen/such-that</span> <span class="nv">not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/keyword</span><span class="p">)))</span>
+</span><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">vec-and-elem</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="nv">keyword-vector</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">v</span><span class="p">]</span> <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/elements</span> <span class="nv">v</span><span class="p">)</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="nv">v</span><span class="p">)))))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">gen/sample</span> <span class="nv">vec-and-elem</span> <span class="mi">4</span><span class="p">)</span>
+</span><span class='line'><span class="c1">;; =&gt; ([:va [:va :b4]] [:Zu1 [:w :Zu1]] [:2 [:2]] [:27X [:27X :KW]])</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>My goal when decompiling Clojure is not to re-create the original source code, but to re-create the <code>AST</code> that gave origin to the <code>JVM</code> bytecode I'm observing.</p>
 
-<p>Since I was creating a debugger that knows about s-expressions, I needed a tree representation from the bytecode that can be properly
-synchronized with the Clojure source code I'm debugging.</p>
+<p>But it doesn&#8217;t have a declarative or simple way to model expected system state.</p>
 
-<p>So my decompiling goal was just getting a higher level semantic tree from the <code>JVM</code> bytecode.</p>
+<h2>What is state?</h2>
 
-<h2>Decompiling phases</h2>
+<p>First thing we should think about is, when we do have state? Opposed to a situation when we&#8217;re testing a <a href="http://en.wikipedia.org/wiki/Referential_transparency_%28computer_science%29">referentially transparent</a> function.</p>
 
-<p>Much of the work I've done was using as guide the <a href="http://www.informatik.uni-trier.de/~ley/pers/hd/c/Cifuentes:Cristina#footer">many publications from Cristina Cifuentes</a>, and the great book <a href="http://www.amazon.com/gp/product/0444002162/">Flow Analysis of Computer Programs</a>,
-which I got an used copy from Amazon. So all the smart ideas belong to them, all mistakes and nonsense are mine.</p>
+<p>The function <code>sort</code> from the previous post is referentially transparent, since for the same input vector, always return the same sorted output.</p>
 
-<p><img class="center" src="/images/blog/flow-analysis-book.jpg" width="320" height="220" title="Flow Analysis of Computer Programs" alt="Flow Analysis of Computer Programs"></p>
+<p>But what happens when we have a situation like the one described in the talk about this circular buffer?</p>
 
-<p>I already said I want a reasonable <code>AST</code> from the bytecode, so decompilation process will be split in phases</p>
+<p><img class="center" src="http://guilespi.github.com/images/blog/circularbuffer.png" width="680" height="780" title="'Circular Buffer'" ></p>
+
+<p>If you want to test the behavior of the <code>put</code> and <code>remove</code> API calls, it depends on the <em>state</em> of the system, meaning what elements you already have on your buffer.</p>
+
+<p>The properties <code>put</code> must comply with, depend on the system state.</p>
+
+<p>So you have this slide from John&#8217;s presentation:</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/fsmmodel.png" width="680" height="780" title="'API Modelling state'" ></p>
+
+<p>With the strategy proposed by QuickCheck to model this testing problem:</p>
+
+<ul>
+<li>API under test is seen as a sequence of commands.</li>
+<li>Model the state of the system you expect after each command execution.</li>
+<li>Execute the commands and validate the system state is what you expect it to be.</li>
+</ul>
+
+
+<p>So we need to generate a <code>sequence</code> of commands and validate system state, instead of generating input for a single function.</p>
+
+<p>This situation is more common than you may think, even if you&#8217;re doing functional programming state is everywhere, you have state on your databases and you also have state on your UI.</p>
+
+<p>You would never think about <code>deleting an email</code>, and after than <code>sending the email</code>, that&#8217;s an invalid generated sequence of commands(relative to the &#8220;email composing state&#8221;).</p>
+
+<p>This last example is exactly the one described by <a href="https://www.youtube.com/watch?v=HXGpBrmR70U">Ashton Kemerling</a> from Pivotal, they&#8217;re using <code>test.check</code> to randomly generate test scenarios for the UI. And because test.check doesn&#8217;t have the <em>finite state machine modeling thing</em>, they ended up generating impossible or invalid action sequences, and having to discard them as <code>NO-OPs</code> when run.</p>
+
+<h2>FSM Behavior</h2>
+
+<p>The problem with Ashton&#8217;s approach for my situation, was that I had this possibly long sequence of commands or transactions, where each transaction modifies the state of the system, so the last one probable makes no sense at all without some of the <em>in-the-middle</em> ocurring transactions.</p>
+
+<p>The problem is not only discarding invalid sequences, but how to generate something valid <em>at all</em>.</p>
+
+<p>Say you have 3 possible actions:</p>
+
+<ul>
+<li>add <code>[id, name]</code></li>
+<li>edit <code>[id, name]</code></li>
+<li>delete <code>[id]</code></li>
+</ul>
+
+
+<p>If the command sequence you generate is:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">[{</span><span class="ss">:type</span> <span class="ss">:add</span> <span class="ss">:name</span> <span class="s">&quot;John&quot;</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}</span>
+</span><span class='line'> <span class="p">{</span><span class="ss">:type</span> <span class="ss">:add</span> <span class="ss">:name</span> <span class="s">&quot;Ted&quot;</span> <span class="ss">:id</span> <span class="mi">84</span><span class="p">}</span>
+</span><span class='line'> <span class="p">{</span><span class="ss">:type</span> <span class="ss">:delete</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>delete</code> action depends on two things:</p>
 
 <ol>
-<li>Wind the stack and build a statement list</li>
-<li>Create codeblocks and a graph representing control flow</li>
-<li>Detect loops and nested loops</li>
-<li>Structure conditionals</li>
+<li>Someone to be already added (as in the circular buffer described above).</li>
+<li>Selecting a valid <code>id</code> for deletion from the ones already added.</li>
 </ol>
 
 
-<p>If you want a decompiler that re-creates source code, you would add a fifth step called <em>Emit source code</em>.</p>
+<p>It looks like something you would do using <code>bind</code>, but there&#8217;s something more, there&#8217;s a <code>state</code> that changes when each transaction is applied, and affects each potential command that may be generated afterwards.</p>
 
-<p>As you smart readers would have probably noticed by now, it has some things in common with the compiling process,
-only that we need to get to the <code>AST</code> from compiled bytecode instead of doing it from a source file,
-once you have the AST you can emit whatever you want, even <code>Basic</code>.</p>
+<p>Searching around, I found a document titled <a href="http://www.diva-portal.org/smash/get/diva2:343744/FULLTEXT01.pdf">Verifying Finite State Machine Behavior Using QuickCheck Eqc_fsm</a> by Ida Lindgren and Robin Malmros, it&#8217;s an evaluation from <em>Uppsala Universitet</em> to understand whether QuickCheck is suitable for testing mobile telephone communications with base transceiver stations.</p>
 
-<h3>1. Wind the stack</h3>
+<p>Besides the evaluation itself which is worth reading, there&#8217;s a chapter on Finite State Machines I used as guide to implement something similar with <code>test.check</code>.</p>
 
-<p>Maybe I should have used a different name for this step, since stack unwinding is usually related with C++ exception handling, and refers to how
-objects allocated are destroyed when exiting the function and destroying the frame.</p>
+<h2>The Command protocol</h2>
 
-<p>But in the general case, stack unwind refers to what happens with the stack when a function is finished and the current frame needs to be cleared.</p>
+<p>There&#8217;s a nice diagram in the paper representing the Erlang&#8217;s finite state machine flow</p>
 
-<p>And if we <a href="http://www.merriam-webster.com/dictionary/unwind">go to the dictionary</a> - pun intended -</p>
+<p><img class="center" src="http://guilespi.github.com/images/blog/fsmflow.png" width="680" height="780" title="'QuickCheck FSM Flow'" ></p>
 
-<p><blockquote><p>to become uncoiled or disentangled</p><footer><strong>Merriam-Webster : Unwind</strong> <cite><a href='http://www.merriam-webster.com/dictionary/unwind'>www.merriam-webster.com/unwind/&hellip;</a></cite></footer></blockquote></p>
-
-<p>I'm happy to say we will coil the uncoiled stack into proper statements.</p>
-
-<p>As we saw <a href="http://blog.guillermowinkler.com/blog/2014/04/21/decompiling-clojure-ii/">in the second post of our series</a>, the JVM uses a stack based approach to parameter passing</p>
-
-<p>```
-f(a, b, c)</p>
-
-<p>=> compiles to</p>
-
-<p>push a
-push b
-push c
-call f</p>
-
-<p>```</p>
-
-<p>So our first step is about getting the stack back together.</p>
-
-<p>Some statements are going to be quite similar to what the Clojure compiler already recognizes, such as <code>IfExpr</code> representing an if conditional, but many statements at this stage won't have a direct mapping in Clojure, for instance the <code>AssignStatement</code> representing an assignment to a variable, does not exist in the Clojure compiler, and higher level constructs such as <code>LetFnExpr</code> or <code>MapExpr</code> won't be mapped at this stage of low-level bytecode.</p>
-
-<p>So a reduced list would look like:</p>
+<p>We observe a few things:</p>
 
 <ul>
-<li>AssignStatatement</li>
-<li>IfStatement</li>
-<li>InvokeStatement</li>
-<li>ReturnStatement</li>
-<li>NewStatement</li>
+<li>You have a set of possible commands to generate.</li>
+<li>Each command has a precondition to check validity against current state.</li>
+<li>Each command affects state in some way, generating a new-state.</li>
 </ul>
 
 
-<p>So we're dealing with less typed expressions/statements, just a small set of generic control structures.</p>
+<p>Translating that ideas into Clojure we can model a command protocol</p>
 
-<p>One important thing when winding the stack is: in many cases statement compose, for instance an <code>InvokeStatement</code> result may be used directly from the stack into a subsequent <code>IfStatement</code>.</p>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defprotocol </span><span class="nv">Command</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Returns true if command can be applied in current system state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Applies generated command to the specified system state, returns new state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Generates command given the current system state, returns command generator&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>Let me show you.</p>
 
-<p>Getting back to our previous example</p>
-
-<p>```clojure
-(defn test-if
-  []
-  (if (= (inc 1) 2)</p>
-
-<pre><code>8
-9))
-</code></pre>
-
-<p>```
-Decompiled as</p>
-
-<p>```
-public java.lang.Object invoke();</p>
-
-<pre><code>Code:
-</code></pre>
-
-<p>==></p>
-
-<pre><code>   0: lconst_1
-   1: invokestatic  #63                 // Method clojure/lang/Numbers.inc:(J)J
-   4: ldc2_w        #42                 // long 2l
-   7: lcmp
-   8: ifne          18
-</code></pre>
-
-<p>==></p>
-
-<pre><code>  11: getstatic     #49                 // Field const__4:Ljava/lang/Object;
-  14: goto          21
-  17: pop
-  18: getstatic     #53                 // Field const__5:Ljava/lang/Object;
-  21: areturn
-</code></pre>
-
-<p>```</p>
-
-<p>Lines <code>0</code> and <code>1</code> are responsible for the <code>(inc 1)</code> part of the code, decompiling to <code>clojure.lang.Numbers.inc(1)</code>, which result is directly used in line <code>7</code> which compares with the long value <code>2</code> pushed on line <code>4</code>.</p>
-
-<p>So our first decompiled statement on line <code>0</code> is an <code>IfStatement</code>, which contains the <code>InvokeStatement</code> <em>inside</em>.</p>
-
-<p><code>
-0:IF (2!=clojure.lang.Numbers.inc(1)) GOTO 11 ELSE GOTO 18
-11:RETURN 9
-18:RETURN 8
-</code></p>
-
-<p>When this step is finished all the low level concepts will be removed, and high level concepts were re-introduced, such as parameter passing.</p>
-
-<p>But we're still stuck with our damn Basic!</p>
-
-<h3>Codeblock Graph</h3>
-
-<p>A Codeblock is a sequence of statements with no branch statements in the middle, meaning execution starts at the first statement, and ends with the last one.</p>
-
-<p>The following is a control flow graph, with code blocks numbered from <code>B1</code> to <code>B15</code>.</p>
-
-<p><img class="center" src="/images/blog/codeblock-graph.png" width="580" height="380" title="Sample Control Flow Graph" alt="Sample Control Flow Graph"></p>
-
-<p>Note we're building a <strong>graph</strong> here, not a <strong>tree</strong>.</p>
-
-<p>A tree is a minimally connected graph, having only one path between any two vertices,
-when modeling control flow you can have <strong>many</strong> paths between two vertices,
-for instance in our example <code>B1-&gt;B2-&gt;B4-&gt;B5</code> and <code>B1-&gt;B5</code>.</p>
-
-<p>This is the first step of the control flow analysis phase,
-having identified the basic branching statements from the previous step,
-building the graph is straightforward.</p>
-
-<h3>Loop Detection</h3>
-
-<p>Loop detection is one of the most difficult tasks when writing a decompiler.</p>
-
-<p>Main reason is when you're reading bytecode or assembly, you're not entirely sure about the compiler used to generate that,
-you may be trying to decompile bytecode written by hand, which may never map to a <em>known</em> higher level construct.</p>
-
-<p>For instance, there are a few higher level constructs identified with loops, which usually take the following form:</p>
-
-<p><img class="center" src="/images/blog/proper-loops.png" width="380" height="280" title="Proper loops" alt="Proper loops"></p>
-
-<p>But then you may have a graph with the following <em>improper</em> looping structures:</p>
-
-<p><img class="center" src="/images/blog/improper-loops.png" width="380" height="280" title="Improper loops" alt="Improper loops"></p>
-
-<p>Improper loops ranging from multi-entry or multi-exit, something you can find on <code>goto</code> enabled languages, to parallel loops with a common header node, or entwined loops.</p>
-
-<p>In our case, we can assume all bytecode we're going to find is always created from a reasonable Clojure compiler,
-and we can safely guess <code>goto</code> support won't be approved by Rich Hickey any time soon.</p>
-
-<p>So, a loop needs to be defined in terms of the graph representation, which not only determines the extent of the loop but also the nesting of the different loops in the function being decompiled.</p>
-
-<p>The loop detection algorithms I used were taken directly from Cifuentes papers about decompiling, which in turn took the ideas from <a href="http://en.wikipedia.org/wiki/James_F._Allen">James F.Allen</a> and <a href="http://en.wikipedia.org/wiki/John_Cocke">John Cocke</a> of using <a href="http://en.wikipedia.org/wiki/Interval_(graph_theory)">graph interval theory</a> for flow analysis,
- since it satisfies the necessary conditions for loops:</p>
+<p>So far, we&#8217;ve assumed nothing about:</p>
 
 <ul>
-<li>One loop per interval</li>
-<li>A nesting order is provided by the derived sequence of graphs.</li>
+<li>How state is going to be modeled.</li>
+<li>What structure each generated command has.</li>
 </ul>
 
 
-<p>Even if we don't have improper loops, we need to know which <code>IfStatements</code> correspond to a loop header before assuming it's indeed an <code>If</code>.</p>
+<p><strong>Since we&#8217;re using <code>test.check</code> we need a particular protocol function <code>generate</code> returning the command generator.</strong></p>
 
-<p>So, what does a Clojure loop looks like?</p>
+<h2>A Command generator</h2>
 
-<p>```clojure
-(defn test-loop
-  []
-  (loop [x 10]</p>
+<p>Having a protocol, lets define our <code>add</code>, <code>edit</code> and <code>delete</code> transactions.</p>
 
-<pre><code>(when (&gt; x 0)
-  (recur (dec x)))))
-</code></pre>
-
-<p>```</p>
-
-<p>Our first phase decompiler would see it as:</p>
-
-<p><code>
-0:x = 10
-4:IF (0&lt;=x) GOTO 10 ELSE GOTO 22
-10:x = clojure.lang.Numbers.dec(x)
-15:GOTO 4
-22:RETURN NULL
-</code></p>
-
-<p>Well, we had a <code>GOTO</code> after all... as you see a loop is just an <code>If</code> statement followed by a backlink, in this case solved with a <code>GOTO</code> branching statement.</p>
-
-<p>Now if I leave the debug comments from my decompiler, you'll see a couple extra things:</p>
-
-<p>```
-Loading:debugee.test$test_loop</p>
-
-<p>Block Start:0
-0:x = 10</p>
-
-<p>Block Start:4
-4:IF (0&lt;=x) GOTO 10 ELSE GOTO 22</p>
-
-<p>Block Start:10
-10:x = clojure.lang.Numbers.dec(x)
-15:GOTO 4</p>
-
-<p>Block Start:22
-22:RETURN NULL</p>
-
-<p>Found new loop header at:4
-Not belong to loop:22
-Loop closes on:10
-```</p>
-
-<ul>
-<li>Code blocks are identified</li>
-<li>Loop belonging nodes are identified</li>
-<li>Loop header and latch nodes are also identified</li>
-</ul>
-
-
-<h3>Structuring Conditionals</h3>
-
-<p>Conditionals refer to <code>if</code>, <code>when</code>, <code>case</code> and other conditionals that may be found in code, which are usually 1-way or 2-way conditioned branches,
-all of them have a common <em>end</em> node reached by all paths.</p>
-
-<p>Since Clojure <code>when</code> is a macro expanding to an <code>if</code>, it's just the 1-way conditional branch, if the <code>if</code> clause has an <code>else</code> part we're in the 2-way conditional branch, where the else part is taken before reaching the common follow node.</p>
-
-<p>The more difficult situation arises when trying to structure compound boolean conditions, as you see in the following picture:</p>
-
-<p><img class="center" src="/images/blog/compound-conditionals.png" width="580" height="380" title="Compound conditionals" alt="Compound conditionals"></p>
-
-<p>You should expect different <code>IfStatements</code> one behind the other, all being part of the same higher-level compound conditional which is compiled in a short-circuit fashion,
-with two chained if statements.</p>
-
-<p>With Clojure we have an additional problem, for instance the following example:</p>
-
-<p>```clojure
-(defn test-compound
-  []
-  (if (and (> 2 1) (= 0 0))</p>
-
-<pre><code>2
-1))
-</code></pre>
-
-<p>```</p>
-
-<p>Decompiles to the following <code>Basic</code>:</p>
-
-<p><code>
-0:and__3941__auto__1754 = clojure.lang.Numbers.gt(2, 1)
-8:IF and__3941__auto__1754==0 GOTO 12 ELSE GOTO 21
-12:IF clojure.lang.Util.equiv(0, 0)==0 GOTO 25 ELSE GOTO 32
-21:IF and__3941__auto__1754==0 GOTO 25 ELSE GOTO 32
-25:RETURN 2
-32:RETURN 1
-</code></p>
-
-<p>Wait a minute!!</p>
-
-<p>We should be seeing only two <code>IfStatements</code> there, one for each part of the compound conditional, but there are three, what's going on?</p>
-
-<p>As you see on line <code>21</code> the same condition of line <code>8</code> is being tested again, which we already know it's false, why someone would do that?</p>
-
-<p>It turns out it has to do with <code>and</code> being implemented as a macro, so if we look what's the actual Clojure code being emitted the bytecode makes sense</p>
-
-<p>```clojure
-(clojure.pprint/pprint
-  (macroexpand-all '(if (and (> 2 1) (= 0 0)) 2 1)))</p>
-
-<pre><code>(if
- (let*
-   [and__3941__auto__ (&gt; 2 1)]
-   (if and__3941__auto__ (= 0 0) and__3941__auto__))
- 2
- 1)
-</code></pre>
-
-<p>```</p>
-
-<p>The <code>and__3941__auto__</code> variable which is the result of the first condition is being checked twice,
-I guess this is the reason the temporary variable exists in the first place,
-to avoid computation of the boolean expression twice and just checking for the result of it again.</p>
-
-<p>If case the compiler analyzed the <code>and</code> as part of the <code>if</code> it could have emitted the result directly instead of
-using a temporary variable and that nasty double check.</p>
-
-<h2>The Clojure case</h2>
-
-<p>Many of the different strategies explored previously apply if you want to decompile just about anything from bytecode (or machine language).</p>
-
-<p>Since in our case we already know we're decompiling Clojure, there are a lot of special cases we know we will <em>never</em> encounter.</p>
-
-<p>Targeting our decompiler to only one language makes things easier, since while we're not only supporting only one compiler,
-but we know we'll never encounter manually generated bytecode,
-unless your using an agent or custom loader that has patched the bytecode, of course.</p>
-
-<h2>What's next</h2>
-
-<p>In the next post I will show you two things, how to synchronize the decompiled bytecode tree with Clojure source code,
-and how to patch the debuggee on runtime to use our s-expression references using <a href="https://commons.apache.org/proper/commons-bcel/">BCEL</a>.</p>
-
-<p>Much of the code to accomplish this was developed while understanding the problem, so it's not open sourced yet, I'm planning to move stuff around and make it public,
-but if you want to look at the current mess just ping me, I'll send it to you(you'll need to un-rust your graph mangling skills tough).</p>
-
-<p>Meanwhile, <a href="http://www.twitter.com/guilespi">I'm guilespi</a> on Twitter.</p>
-]]></content>
-  </entry>
-  
-  <entry>
-    <title type="html"><![CDATA[Decompiling Clojure II, The Compiler]]></title>
-    <link href="http://guilespi.github.com/blog/2014/04/21/decompiling-clojure-ii/"/>
-    <updated>2014-04-21T01:03:00-03:00</updated>
-    <id>http://guilespi.github.com/blog/2014/04/21/decompiling-clojure-ii</id>
-    <content type="html"><![CDATA[<p>This is the second post in the Decompiling Clojure series, <a href="http://blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">in the first post</a> I showed what Clojure looks like in bytecode.</p>
-
-<p>For this entry, I'll do a compiler overview, the idea is to understand why and how does Clojure looks like that.</p>
-
-<p>For other decompilation scenarios you don't usually have the advantage of looking at the compiler internals to guide your decompiling algorithms, so we'll take our chance to peek at the compiler now.</p>
-
-<p>We will visit some compiler source code, so be warned, there's Java ahead.</p>
-
-<h2>It's Java</h2>
-
-<p>Well, yes, the Clojure compiler targeting the JVM is written in Java, <a href="https://github.com/Bronsa/CinC">there is an ongoing effort</a> to have a Clojure-in-Clojure compiler, but the original compiler is nowhere near of being replaced.</p>
-
-<p>The source code <a href="https://github.com/clojure/clojure">is hosted on GitHub</a>, but the development process is <a href="http://dev.clojure.org/display/community/JIRA+workflow">a little bit more convoluted</a>, which means you don't just send pull requests for it, <a href="https://groups.google.com/d/msg/clojure/0gwjKtatf-0/dOMECoHPlM4J">it was asked for many times</a> and I don't think it's about to change, so if you wanna contribute, <a href="http://clojure.org/contributing">just sign the contributors agreement</a> and follow the rules.</p>
-
-<h2>The CinC Alternative</h2>
-
-<p>The Clojure-in-Clojure alternative is not only different because it's written in Clojure, but because it's built with extensibility and modularization in mind.</p>
-
-<p>In the original Clojure compiler you don't have a chance to extend, modify or use, many of the data produced by the compilation process.</p>
-
-<p>For instance the <a href="https://github.com/clojure/core.typed">Typed Clojure</a> project, which adds <a href="http://wphomes.soic.indiana.edu/jsiek/what-is-gradual-typing/">gradual typing</a> to Clojure, <a href="http://dev.clojure.org/display/design/Provide+friendly+interface+to+Clojure's+analyzer,+independently+callable+a+la+carte">needed a friendlier interface</a> to the compiler analyzer phase. It was first developed by Ambrose Bonnair-Sergeant <a href="https://github.com/frenchy64/analyze">as an interface to the Compiler analyzer</a> <del>and then moved to be part of the <a href="https://github.com/clojure/tools.analyzer">CinC analyzer</a></del>.</p>
-
-<p>The CinC alternative is modularized in -at least three- different parts.</p>
-
-<ul>
-<li><a href="https://github.com/clojure/tools.analyzer">The analyzer</a>, meant to be shared among all Clojure compilers (as Clojurescript)</li>
-<li><a href="https://github.com/clojure/tools.analyzer.jvm">The JVM analyzer</a>, contains specific compiler passes for the JVM (for instance locals clearing is done here)</li>
-<li><a href="https://github.com/clojure/tools.emitter.jvm">The bytecode emitter</a>, actually emits JVM bytecode.</li>
-</ul>
-
-
-<p>There's <a href="http://www.youtube.com/watch?v=KhRQmT22SSg">a great talk from Timothy Baldridge</a> showing some examples using the CinC analyzer, watch it.</p>
-
-<p><strong>Note</strong> <em>CinC developer <a href="https://github.com/Bronsa">Nicola Mometto</a> <a href="https://twitter.com/Bronsa_/status/458643972555300866">pointed out</a> that the analyzer written by Ambrose and CinC are indeed different projects. Which I should've noticed myself since
-the analyzer by Ambrose uses the analyzer from the original Clojure compiler, which is <a href="https://github.com/clojure/jvm.tools.analyzer/blob/master/src/main/clojure/clojure/jvm/tools/analyzer.clj#L843">exposed as a function</a>. Part of my mistake was surely derived from the fact one is called <code>tools.analyzer.jvm</code> and
-the other one is called <code>jvm.tools.analyzer</code></em></p>
-
-<h2>Compilation process</h2>
-
-<p>One of supposed advantages of Lisp-like languages is that the concrete syntax is already the abstract syntax. If you've read some of the <a href="http://www.twitter.com/fogus">fogus</a> <a href="http://blog.fogus.me/tag/clj-compilation/">writings about Clojure compilation</a> tough, he has some opinions on that statement:</p>
-
-<p><blockquote><p>This is junk. Actual ASTs are adorned with a boatload of additional information like local binding information, accessible bindings, arity information, and many other useful tidbits.</p><footer><strong>fogus</strong> <cite><a href='http://blog.fogus.me/2012/04/25/the-clojurescript-compilation-pipeline/'>blog.fogus.me/2012/04/25/&hellip;</a></cite></footer></blockquote></p>
-
-<p>And he's right, but there's one more thing, Clojure and Lisp syntax are just serialization formats, mapping to the underlying data structure of the program.</p>
-
-<p>That's why Lisp like languages are easier to parse and unparse, or build tools for them, because the program data structure is accesible to the user and not only to the compiler.</p>
-
-<p>Also that's the reason why macros in Lisp or Clojure are so different than <a href="http://docs.scala-lang.org/overviews/macros/overview.html">macros in Scala</a>, where the pre-processor handles you an AST that has nothing to do with the Scala language itself.</p>
-
-<p>That's the proper definition of <a href="http://en.wikipedia.org/wiki/Homoiconicity">homoiconicity</a> by the way, the syntax is isomorphic with the AST.</p>
-
-<h2>Compiler phases</h2>
-
-<p>In general compilers can be broken up into three pieces</p>
+<p>Questions to answer are:</p>
 
 <ol>
-<li>Lexer/Parser</li>
-<li>Analyzer</li>
-<li>Emitter</li>
+<li>What will our model of the world look like?</li>
+<li>What&#8217;s the initial and expected states after applying each transaction?</li>
 </ol>
 
 
-<p>Clojure kind of follows this pattern, so if we're compiling a Clojure program the <em>very</em> high level approach to the compilation pipeline would be:</p>
+<p>Our expected state will be something like this:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">{</span><span class="ss">:people</span> <span class="p">[{</span><span class="ss">:name</span> <span class="s">&quot;John&quot;</span> <span class="ss">:id</span> <span class="mi">1</span><span class="p">}</span>
+</span><span class='line'>          <span class="p">{</span><span class="ss">:name</span> <span class="s">&quot;Ted&quot;</span> <span class="ss">:id</span> <span class="mi">84</span><span class="p">}</span>
+</span><span class='line'>          <span class="p">{</span><span class="ss">:name</span> <span class="s">&quot;Tess&quot;</span> <span class="ss">:id</span> <span class="mi">22</span><span class="p">}]}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p></p>
+
+<p>So our <code>add</code> transaction will be:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">add-cmd</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">reify</span>
+</span><span class='line'>    <span class="nv">Command</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">vector? </span><span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">update-in</span> <span class="nv">state</span> <span class="p">[</span><span class="ss">:people</span><span class="p">]</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">people</span><span class="p">]</span>
+</span><span class='line'>                                   <span class="p">(</span><span class="nb">conj </span><span class="nv">people</span>
+</span><span class='line'>                                         <span class="p">(</span><span class="nb">dissoc </span><span class="nv">cmd</span> <span class="ss">:type</span><span class="p">)))))</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:name</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:add</span><span class="p">)</span>
+</span><span class='line'>                           <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="nv">gen/string-alphanumeric</span><span class="p">)</span>
+</span><span class='line'>                           <span class="nv">gen/int</span><span class="p">))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p></p>
+
+<p>The highlights:</p>
+
+<ul>
+<li>Our only precondition is to have a vector to <code>conj</code> the transaction into.</li>
+<li>The <code>generate</code> function returns a standard <code>test.check</code> generator for the command.</li>
+<li>The <code>exec</code> function applies the generated command to the current system state and returns a new state.</li>
+</ul>
+
+
+<p>Now, what&#8217;s interesting is the <code>delete</code> transaction:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">delete-cmd</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">reify</span>
+</span><span class='line'>    <span class="nv">Command</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">seq </span><span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">update-in</span> <span class="nv">state</span> <span class="p">[</span><span class="ss">:people</span><span class="p">]</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">people</span><span class="p">]</span>
+</span><span class='line'>                                   <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nb">not= </span><span class="p">(</span><span class="ss">:id</span> <span class="nv">%</span><span class="p">)</span>
+</span><span class='line'>                                                       <span class="p">(</span><span class="ss">:id</span> <span class="nv">cmd</span><span class="p">))</span>
+</span><span class='line'>                                                <span class="nv">people</span><span class="p">)))))</span>
+</span><span class='line'>
+</span><span class='line'>    <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:delete</span><span class="p">)</span>
+</span><span class='line'>                           <span class="p">(</span><span class="nf">gen/elements</span> <span class="p">(</span><span class="nf">mapv</span> <span class="ss">:id</span> <span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">))))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Note the differences:</p>
+
+<ul>
+<li><code>delete</code> can only be executed if the people list actually has <em>someone</em> inside</li>
+<li>The generator selects to delete an <code>id</code> from the people in the current state (using <code>gen/elements</code> selector)</li>
+<li>Applying the command implies removing the selected person from the next state.</li>
+</ul>
+
+
+<h2>Valid sequence generator</h2>
+
+<p>So how do we generate a sequence of commands giving a command list?</p>
+
+<p>This is a recursive approach, that receives the available commands and the sequence size to generate:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">command-seq</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span> <span class="nv">size</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/one-of</span> <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nf">precondition</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nf">generate</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))))</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">zero? </span><span class="nv">size</span><span class="p">)</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/return</span> <span class="p">[</span><span class="nv">cmd</span><span class="p">])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/fmap</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nb">partial concat </span><span class="p">[</span><span class="nv">cmd</span><span class="p">])</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nf">command-seq</span> <span class="p">(</span><span class="nf">exec</span> <span class="p">(</span><span class="nb">get </span><span class="nv">commands</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">cmd</span><span class="p">))</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">)</span>
+</span><span class='line'>                              <span class="nv">commands</span>
+</span><span class='line'>                              <span class="p">(</span><span class="nb">dec </span><span class="nv">size</span><span class="p">)))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The important parts being:</p>
+
+<ul>
+<li>Selects only one valid command to generate with <code>one-of</code> after filtering preconditions.</li>
+<li>If command sequence size is <code>0</code> just finish, otherwise recursively concat the rest of the sequence.</li>
+<li>The new state is updated in the step <code>(exec (get commands (:type cmd)) state cmd)</code>, where we need to retrieve the original command object.</li>
+</ul>
+
+
+<p>If you would like to generate random sequence sizes, just bind it with <code>gen/choose</code>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/choose</span> <span class="mi">0</span> <span class="mi">10</span><span class="p">)</span>
+</span><span class='line'>          <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">num-elements</span><span class="p">]</span>
+</span><span class='line'>            <span class="p">(</span><span class="nf">command-seq</span> <span class="p">{</span><span class="ss">:people</span> <span class="p">[]}</span>
+</span><span class='line'>                         <span class="p">{</span><span class="ss">:add-cmd</span> <span class="nv">add-cmd</span>
+</span><span class='line'>                          <span class="ss">:delete-cmd</span> <span class="nv">delete-cmd</span><span class="p">}</span>
+</span><span class='line'>                         <span class="nv">num-elements</span><span class="p">)))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Note the initial state is set to <code>{:people []}</code> for the <code>add</code> command precondition to succeed.</p>
+
+<p>If we generate 3 samples now, it looks good, but there&#8217;s still a problem&#8230;.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(({</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;C&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;2&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;xi&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;p&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;3Q&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;9&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})</span>
+</span><span class='line'> <span class="p">({</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;H&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:name</span> <span class="s">&quot;q&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;F&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})</span>
+</span><span class='line'> <span class="p">({</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;fY&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;a&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">2</span>, <span class="ss">:name</span> <span class="s">&quot;u&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">2</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:name</span> <span class="s">&quot;7&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:name</span> <span class="s">&quot;E&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>  <span class="p">{</span><span class="ss">:id</span> <span class="mi">-1</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Each <code>add-cmd</code> is repeating the <code>id</code>, since it&#8217;s generating it without checking the current state, let&#8217;s change our <code>add</code> transaction generator</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">_</span> <span class="nv">state</span><span class="p">]</span>
+</span><span class='line'>          <span class="p">(</span><span class="nf">gen/fmap</span> <span class="p">(</span><span class="nb">partial zipmap </span><span class="p">[</span><span class="ss">:type</span> <span class="ss">:name</span> <span class="ss">:id</span><span class="p">])</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nf">gen/tuple</span> <span class="p">(</span><span class="nf">gen/return</span> <span class="ss">:add-cmd</span><span class="p">)</span>
+</span><span class='line'>                               <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="nv">gen/string-alphanumeric</span><span class="p">)</span>
+</span><span class='line'>                               <span class="p">(</span><span class="nf">gen/such-that</span> <span class="o">#</span><span class="p">(</span><span class="nb">-&gt; </span><span class="p">(</span><span class="nf">mapv</span> <span class="ss">:id</span> <span class="p">(</span><span class="ss">:people</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                                                   <span class="p">(</span><span class="nb">contains? </span><span class="nv">%</span><span class="p">)</span>
+</span><span class='line'>                                                   <span class="nv">not</span><span class="p">)</span>
+</span><span class='line'>                                              <span class="nv">gen/int</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Now the <code>id</code> field generator checks that the generated <code>int</code> doesn&#8217;t belong to the current ids in the state (we could have returned a <code>uuid</code> or something else, but it wouldn&#8217;t make the case for state-dependent generation)</p>
+
+<p>To complete the example we need:</p>
+
+<ul>
+<li>To apply the commands to the system under test.</li>
+<li>A way to retrieve the system state.</li>
+<li>Comparing the final system state with our final generated expected state.</li>
+</ul>
+
+
+<p>Which is pretty straightforward, so we&#8217;ll talk about shrinking first.</p>
+
+<h2>Shrinking the sequence</h2>
+
+<p>If you were to found a failing command sequence using the code above, you would quickly realize it doesn&#8217;t shrink properly.</p>
+
+<p>Since we&#8217;re generating the sequence composing <code>bind</code>, <code>fmap</code> and <code>concat</code> and not using the internal <code>gen/vector</code> or <code>gen/list</code> generators, the generated sequence doesn&#8217;t know how to shrink itself.</p>
+
+<p>If you read <a href="http://reiddraper.com/writing-simple-check/">Reid&#8217;s account</a> on writing <code>test.check</code>, there&#8217;s a glimpse of the problem we face, shrinking depends on the generated data type. So a generated <code>int</code> knows how to shrink itself, which is different on how a <code>vector</code> shrinks itself.</p>
+
+<p>If you combine existing generators, you get shrinking for free, but since we&#8217;re generating our sequence recursively with <code>concat</code> we&#8217;ve lost the <code>vector</code> type shrinking capability.</p>
+
+<p>And there&#8217;s a good reason it is so, but let&#8217;s first see how shrinking works in <code>test.check</code>.</p>
+
+<h3>Rose Trees</h3>
+
+<p><code>test.check</code> complects the data generation step with the shrinking of that data. So when you generate some value, behind the scenes all the alternative shrinked scenarios are also generated.</p>
+
+<p>Let&#8217;s sample an int vector generator:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/sample</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="mi">5</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">([</span><span class="mi">0</span><span class="p">]</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">[</span><span class="mi">-1</span> <span class="mi">1</span><span class="p">]</span> <span class="p">[</span><span class="mi">1</span> <span class="mi">1</span> <span class="mi">-3</span><span class="p">]</span> <span class="p">[</span><span class="mi">2</span> <span class="mi">3</span><span class="p">])</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The <code>sample</code> function is hiding from you the alternatives and showing only the actual generated value.</p>
+
+<p>But, if we call the generator using <code>call-gen</code>, we have a completely different structure:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">gen/call-gen</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="p">(</span><span class="nf">gen/random</span><span class="p">)</span> <span class="mi">1</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">[[</span><span class="mi">1</span><span class="p">]</span> <span class="p">([[</span><span class="mi">0</span><span class="p">]</span> <span class="p">()])]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>What we have is a <a href="http://en.wikipedia.org/wiki/Rose_tree">rose tree</a>, which is a <code>n-ary</code> tree, where each tree node may have any number of childs.</p>
+
+<p><code>test.check</code> uses a very simple modeling approach for the tree, in the form of <code>[parent childs]</code>.</p>
+
+<p>So this tree</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/rosetree.png" width="340" height="390" title="'Rose Tree'" ></p>
+
+<p>Is represented as</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">[</span><span class="mi">1</span> <span class="p">[[</span><span class="mi">2</span> <span class="p">[]]</span>
+</span><span class='line'>    <span class="p">[</span><span class="mi">3</span> <span class="p">[]]]]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Everytime you get a generated value, what you&#8217;re looking at is at the root of the tree obtained with <code>rose/root</code>, which is exactly what <code>gen/sample</code> is doing.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">require</span> <span class="o">&#39;</span><span class="p">[</span><span class="nv">clojure.test.check.rose-tree</span> <span class="ss">:as</span> <span class="nv">rose</span><span class="p">])</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">rose/root</span> <span class="p">(</span><span class="nf">gen/call-gen</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))</span> <span class="p">(</span><span class="nf">gen/random</span><span class="p">)</span> <span class="mi">1</span><span class="p">))</span>
+</span><span class='line'><span class="nv">=&gt;</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>The shrinking tree you would expect for a generated vector is:</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/vectorshrinktree.png" width="680" height="780" title="'Vector rose tree'" ></p>
+
+<p>The more deep inside the tree, the more shrunk the value is. So for instance <code>integers</code> shrink up to zero, and <code>vectors</code> randomly remove elements until nothing is left.</p>
+
+<p><strong>If we were to actually look inside the shrunk vector tree, it would also include the shrunked integers, but you get the idea.</strong></p>
+
+<h2>Shrinking a valid command sequence</h2>
+
+<p>I said before our sequence doesn&#8217;t shrink since it&#8217;s generated recursively, so this is how our sequence tree looks like so far.</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/singlenodecmdtree.png" width="340" height="390" title="'Single node command tree'" ></p>
+
+<p>But even if we were using the vector shrinker we would end up with something like this:</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/invalidcmdtree.png" width="680" height="780" title="'Invalid command tree'" ></p>
+
+<p>Since the vector shrinker doesn&#8217;t really know what a valid command sequence looks like, it will just do a random permutation of commands, ending up with many invalid sequences (like <code>[{:add 1} {:delete 2}]</code>).</p>
+
+<p>We will need a custom shrinker, that shrinks only valid command sequences, with a resulting tree like this one:</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/validcmdtree.png" width="680" height="780" title="'Valid command tree'" ></p>
+
+<p>To do that, we will modify our protocol to add a new function <code>postcondition</code>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defprotocol </span><span class="nv">Command</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">precondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Returns true if command can be applied in current system state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">exec</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Applies generated command to the specified system state, returns new state&quot;</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">generate</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span><span class="p">]</span> <span class="s">&quot;Generates command given the current system state, returns command generator&quot;</span><span class="p">))</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">postcondition</span> <span class="p">[</span><span class="nv">this</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">]</span> <span class="s">&quot;Returns true if cmd can be applied on specified state&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p><code>postcondition</code> will be called while shrinking, in order to validate if a shirking sequence is valid for the hipotetical state generated by the previous commands.</p>
+
+<p>Another important function is <code>gen/pure</code>, which allows to return our custom rose tree as generator result.</p>
+
+<p>So this is how our command generator looks like now:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">cmd-seq</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/choose</span> <span class="mi">0</span> <span class="mi">10</span><span class="p">)</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">num-elements</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">cmd-seq-helper</span> <span class="nv">state</span> <span class="nv">commands</span> <span class="nv">num-elements</span><span class="p">)</span>
+</span><span class='line'>                        <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd-seq</span><span class="p">]</span>
+</span><span class='line'>                          <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">shrinked</span> <span class="p">(</span><span class="nf">shrink-sequence</span> <span class="p">(</span><span class="nf">mapv</span> <span class="nb">first </span><span class="nv">cmd-seq</span><span class="p">)</span>
+</span><span class='line'>                                                          <span class="p">(</span><span class="nf">mapv</span> <span class="nb">second </span><span class="nv">cmd-seq</span><span class="p">))]</span>
+</span><span class='line'>                            <span class="p">(</span><span class="nf">gen/gen-pure</span> <span class="nv">shrinked</span><span class="p">)))))))</span>
+</span><span class='line'>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">cmd-seq-helper</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">state</span> <span class="nv">commands</span> <span class="nv">size</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">gen/bind</span> <span class="p">(</span><span class="nf">gen/one-of</span> <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nf">precondition</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))</span>
+</span><span class='line'>                             <span class="p">(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nf">generate</span> <span class="nv">%</span> <span class="nv">state</span><span class="p">))))</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">cmd</span><span class="p">]</span>
+</span><span class='line'>              <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">zero? </span><span class="nv">size</span><span class="p">)</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/return</span> <span class="p">[[</span><span class="nv">cmd</span> <span class="nv">state</span><span class="p">]])</span>
+</span><span class='line'>                <span class="p">(</span><span class="nf">gen/fmap</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nb">partial concat </span><span class="p">[[</span><span class="nv">cmd</span> <span class="nv">state</span><span class="p">]])</span>
+</span><span class='line'>                 <span class="p">(</span><span class="nf">cmd-seq-helper</span> <span class="p">(</span><span class="nf">exec</span> <span class="p">(</span><span class="nb">get </span><span class="nv">commands</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">cmd</span><span class="p">))</span> <span class="nv">state</span> <span class="nv">cmd</span><span class="p">)</span>
+</span><span class='line'>                                 <span class="p">(</span><span class="nb">map second </span><span class="nv">commands</span><span class="p">)</span>
+</span><span class='line'>                                 <span class="p">(</span><span class="nb">dec </span><span class="nv">size</span><span class="p">)))))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We see two different things here:</p>
 
 <ol>
-<li>Read file</li>
-<li>Read s-expression</li>
-<li>Expand macros if present</li>
-<li>Analyze</li>
-<li>Generate JVM bytecode</li>
+<li>Generator also returns the state for that particular command.</li>
+<li>There&#8217;s a call to <code>shrink-sequence</code> that generates the rose tree given the command sequence and intermediate states.</li>
 </ol>
 
 
-<p>The first three steps are the <em>Reading</em> phase <a href="http://blog.fogus.me/2012/04/25/the-clojurescript-compilation-pipeline/">from the fogus article</a>.</p>
-
-<p>There is one important thing about these steps:</p>
-
-<p>Bytecode has <strong>no information about macros whatsoever</strong>, emitted bytecode corresponds to what you see with <a href="http://clojuredocs.org/clojure_core/clojure.core/macroexpand">macroexpand</a> calls.
-Since macros are expanded before analyzing, you shouldn't expect to find anything about your macro in the compiled bytecode, nada, niet, gone.</p>
-
-<p>Meaning, we shouldn't expect to be able to properly decompile macro'ed stuff either.</p>
-
-<h2>Compile vs. Eval</h2>
-
-<p>As said on the first post, the <code>class</code> file doesn't need to be on disk, and that's better understood if we think about <a href="http://clojuredocs.org/clojure_core/1.2.0/clojure.core/eval">eval</a>.</p>
-
-<p>When you type a command in the <code>REPL</code> it needs to be properly translated to bytecode before the JVM is able to execute it, but it doesn't mean the compiler will save a <code>class</code> file, then load it, and only then execute it.</p>
-
-<p>It will be done on the fly.</p>
-
-<p>We will consider three entry points for the compiler, <code>compile</code>, <code>load</code> and <code>eval</code>.</p>
-
-<p><img class="center" src="/images/blog/compiler-reader.png" width="580" height="380" title="Compiler entry point" alt="Compiler entry points"></p>
-
-<p>The <code>LispReader</code> is responsible for reading forms from an input stream.</p>
-
-<h3>Compile Entry Point</h3>
-
-<p><code>compile</code> is a static function found in the <code>Compiler.java</code> file, member of the <code>Compiler</code> class, and it does generate a <code>class</code> file on disk for each function in the compiled namespace.</p>
-
-<p>For instance it will get called if you do the following in your REPL</p>
-
-<p><code>clojure
-(compile 'clojure.core.reducers)
-</code></p>
-
-<p>Clojure function just wraps over the Java function doing the actual work with the signature</p>
-
-<p><div class='bogus-wrapper'><notextile><figure class='code'><figcaption><span>compile</span><a href='https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L7162'>Compiler.java </a></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kd">public</span> <span class="kd">static</span> <span class="n">Object</span> <span class="nf">compile</span><span class="o">(</span><span class="n">Reader</span> <span class="n">rdr</span><span class="o">,</span> <span class="n">String</span> <span class="n">sourcePath</span><span class="o">,</span> <span class="n">String</span> <span class="n">sourceName</span><span class="o">)</span> <span class="kd">throws</span> <span class="n">IOException</span><span class="o">{</span>
-</span></code></pre></td></tr></table></div></figure></notextile></div></p>
-
-<p>Besides all the preamble, <a href="https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L7214-L7221">the core of the function</a> is just a loop which reads and calls the <code>compile1</code> function for each form found in the file.</p>
-
-<p>```java
-for(Object r = LispReader.read(pushbackReader, false, EOF, false); r != EOF;</p>
-
-<pre><code>        r = LispReader.read(pushbackReader, false, EOF, false))
-{
-     compile1(gen, objx, r);
-}
-</code></pre>
-
-<p>```</p>
-
-<p>As we expect, <a href="https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L7138-L7154">the compile1 function does macro expansion</a> before analyzing or emitting anything, if <code>form</code> turns out to be a list it recursively calls itself, which is
-the <code>then</code> branch of the if test:</p>
-
-<p>```java
-form = macroexpand(form);
-if(form instanceof IPersistentCollection &amp;&amp; Util.equals(RT.first(form), DO))
-  {</p>
-
-<pre><code>for(ISeq s = RT.next(form); s != null; s = RT.next(s))
-{
-    compile1(gen, objx, RT.first(s));
-}
-</code></pre>
-
-<p>  }
-else
-  {</p>
-
-<pre><code>Expr expr = analyze(C.EVAL, form);
-    ....
-expr.emit(C.EXPRESSION, objx, gen);
-expr.eval();
-</code></pre>
-
-<p>  }
-```</p>
-
-<p>The <code>analyze</code> function we see on the <code>else</code> branch does the proper <code>s-expr</code> analyzing which emits and evals itself afterwards, more on analyzing ahead.</p>
-
-<h3>Load Entry Point</h3>
-
-<p>The <code>load</code> function gets called any time we do a <code>require</code> for a not pre-compiled namespace.</p>
-
-<p><div class='bogus-wrapper'><notextile><figure class='code'><figcaption><span>load</span><a href='https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L7032'>link</a></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kd">public</span> <span class="kd">static</span> <span class="n">Object</span> <span class="nf">load</span><span class="o">(</span><span class="n">Reader</span> <span class="n">rdr</span><span class="o">,</span> <span class="n">String</span> <span class="n">sourcePath</span><span class="o">,</span> <span class="n">String</span> <span class="n">sourceName</span><span class="o">)</span> <span class="o">{</span>
-</span></code></pre></td></tr></table></div></figure></notextile></div></p>
-
-<p>For instance, say we do a require for the <code>clojure.core.reducers</code> namespace:</p>
-
-<p><code>clojure
-(require '[clojure.core.reducers :as r])
-</code></p>
-
-<p>The <code>clj</code> file will be read as a stream in the <code>loadResourceScript</code> function and passed as the first <code>rdr</code> parameter of the <code>load</code> function.</p>
-
-<p>You see the <code>load</code> function has a pretty similar read form and eval loop as the one we saw in the compile function.</p>
-
-<p><code>java
-for(Object r = LispReader.read(pushbackReader, false, EOF, false); r != EOF;
-r = LispReader.read(pushbackReader, false, EOF, false))
-{
-  ret = eval(r,false);
-}
-</code></p>
-
-<p>Instead of calling <code>compile1</code> calling <code>eval</code>, which is our next entry point.</p>
-
-<h3>Eval Entry Point</h3>
-
-<p><code>eval</code> is the <code>e</code> in REPL, anything to be dynamically evaluated goes through the <code>eval</code> function.</p>
-
-<p>For instance if you type <code>(+ 1 1)</code> on your REPL that expression will be parsed, analyzed and evaluated starting on the <code>eval</code> function.</p>
-
-<p><div class='bogus-wrapper'><notextile><figure class='code'><figcaption><span>eval</span><a href='https://github.com/clojure/clojure/blob/1.5.x/src/jvm/clojure/lang/Compiler.java#L6585'>Compiler.java  </a></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kd">public</span> <span class="kd">static</span> <span class="n">Object</span> <span class="nf">eval</span><span class="o">(</span><span class="n">Object</span> <span class="n">form</span><span class="o">,</span> <span class="kt">boolean</span> <span class="n">freshLoader</span><span class="o">)</span>
-</span></code></pre></td></tr></table></div></figure></notextile></div></p>
-
-<p>As you see eval receives a <code>form</code> by parameter, since knows nothing about files nor namespaces.</p>
-
-<p><code>eval</code> is just straightforward analyzing of the form, and there's not a emit here. This is the <em>simplified</em> version of the function:</p>
-
-<p><code>java
-form = macroexpand(form);
-Expr expr = analyze(C.EVAL, form);
-return expr.eval();
-</code></p>
-
-<h2>The reader</h2>
-
-<p>Languages with more complicated syntaxes separate the Lexer and Parser into two different pieces, like most Lisps, Clojure combines these two into just a <code>Reader</code>.</p>
-
-<p>The reader is pretty much self contained in <code>LispReader.java</code> and its main responsibility is given a stream, return the properly <em>tokenized</em> s-expressions.</p>
-
-<p>The reader dispatches reading to specialized functions and classes when a particular token is found, for instance <code>(</code> dispatches to <code>ListReader</code> class, digits dispatch to the <code>readNumber</code> function and so on.</p>
-
-<p>Much of the list and vector reading classes(<code>VectorReader</code>, <code>MapReader</code>, <code>ListReader</code>, etc) rely on the more generic <code>readDelimitedList</code> function which receives the particular list separator as parameter.</p>
-
-<p>```java Reader classes for each special character in LispReader</p>
-
-<pre><code>macros['"'] = new StringReader();
-macros[';'] = new CommentReader();
-macros['\''] = new WrappingReader(QUOTE);
-macros['@'] = new WrappingReader(DEREF);//new DerefReader();
-macros['^'] = new MetaReader();
-macros['`'] = new SyntaxQuoteReader();
-macros['~'] = new UnquoteReader();
-macros['('] = new ListReader();
-macros[')'] = new UnmatchedDelimiterReader();
-macros['['] = new VectorReader();
-macros[']'] = new UnmatchedDelimiterReader();
-macros['{'] = new MapReader();
-macros['}'] = new UnmatchedDelimiterReader();
-</code></pre>
-
-<p>//  macros['|'] = new ArgVectorReader();</p>
-
-<pre><code>macros['\\'] = new CharacterReader();
-macros['%'] = new ArgReader();
-macros['#'] = new DispatchReader();
-</code></pre>
-
-<p>```
-This is important because the reader is responsible for reading line and column number information, and establishing a relationship between tokens read and locations in the file.</p>
-
-<p>One of the main drawbacks of the reader used by the compiler is that much of the line and column number information is lost, that's one of the reasons <a href="http://blog.guillermowinkler.com/blog/2014/04/13/decompiling-clojure-i/">we saw in our earlier post</a> that for a 7 line function only one line was properly mapped, interestingly, the line corresponding to the outter s-expression.</p>
-
-<p>We will have to modify this reader if we want proper debugging information for our debugger.</p>
-
-<h2>The analyzer</h2>
-
-<p>The analyzer is the part of the compiler that translates your <code>s-expressions</code> into proper things to be emitted.</p>
-
-<p>We're already familiar with the REPL, in the <code>eval</code> function <code>analyze</code> and <code>emit</code> are combined in a single step, but internally there's a two step process.</p>
-
-<p>First, our parsed but meaningless code needs to be translated into meaningful expressions.</p>
-
-<p>In the case of the Clojure compiler all expressions implement the <code>Expr</code> interface:</p>
-
-<p>```java
-interface Expr{</p>
-
-<pre><code>Object eval() ;
-void emit(C context, ObjExpr objx, GeneratorAdapter gen);
-boolean hasJavaClass() ;
-Class getJavaClass() ;
-</code></pre>
-
-<p>}
-<code>``
-Much of the [Clojure special forms][24] are handled here,</code>IfExpr<code>,</code>LetExpr<code>,</code>LetFnExpr<code>,</code>RecurExpr<code>,</code>FnExpr<code>,</code>DefExpr<code>,</code>CaseExpr`, you get the idea.</p>
-
-<p>Those are nested classes inside the Compiler class, and for you visualize how many of those special cases exist inside the compiler, I took this picture for you:</p>
-
-<p><img class="center" src="/images/blog/analyze-expr.png" width="380" height="280" title="Analyzer" alt="Analyzer"></p>
-
-<p>As you would expect for a properly modularized piece of software, each expression knows how to parse itself, eval itself, and emit itself.</p>
-
-<p>The analyze function is a switch on the type of the form to be analyzed, just for you to get a taste:</p>
-
-<p>```java
-private static Expr analyze(C context, Object form, String name) {</p>
-
-<p>...</p>
-
-<p>if(fclass == Symbol.class)</p>
-
-<pre><code>return analyzeSymbol((Symbol) form);
-</code></pre>
-
-<p>else if(fclass == Keyword.class)</p>
-
-<pre><code>return registerKeyword((Keyword) form);
-</code></pre>
-
-<p>else if(form instanceof Number)</p>
-
-<pre><code>return NumberExpr.parse((Number) form);
-</code></pre>
-
-<p>else if(fclass == String.class)</p>
-
-<pre><code>return new StringExpr(((String) form).intern());
-</code></pre>
-
-<p>...
-```</p>
-
-<p>And there's special handling for the special forms which are keyed by Symbol on the same file.</p>
-
-<p>```java
-IPersistentMap specials = PersistentHashMap.create(</p>
-
-<pre><code>    DEF, new DefExpr.Parser(),
-    LOOP, new LetExpr.Parser(),
-    RECUR, new RecurExpr.Parser(),
-    IF, new IfExpr.Parser(),
-    CASE, new CaseExpr.Parser(),
-    LET, new LetExpr.Parser(),
-    LETFN, new LetFnExpr.Parser(),
-    DO, new BodyExpr.Parser(),
-    FN, null,
-    QUOTE, new ConstantExpr.Parser(),
-    THE_VAR, new TheVarExpr.Parser(),
-    IMPORT, new ImportExpr.Parser(),
-    DOT, new HostExpr.Parser(),
-    ASSIGN, new AssignExpr.Parser(),
-    DEFTYPE, new NewInstanceExpr.DeftypeParser(),
-    REIFY, new NewInstanceExpr.ReifyParser(),
-</code></pre>
-
-<p>```</p>
-
-<p>Analyze <em>will</em> return a parsed <code>Expr</code>, which is now a part of your program represented in the internal data structures of the compiler.</p>
-
-<h2>The bytecode generator</h2>
-
-<p>As said before it uses <a href="http://asm.ow2.org/">ASM</a> so we found the standard code stacking up visitors, annotations, methods, fields, etc.</p>
-
-<p>I won't enter here into specific details about ASM API since it's properly documented somewhere else.</p>
-
-<p>Only notice that no matter if code is eval'ed or not, JVM bytecode <em>will</em> be generated.</p>
-
-<h2>What's next</h2>
-
-<p>One of the reasons I ended up here when I started working on the debugger was to see if by any means, I could <em>add</em> better line number references to the
-current Clojure compiler.</p>
-
-<p>As said before and as we saw here, the Java Clojure Compiler is not exactly built for extensibility.</p>
-
-<p>The option I had left, was to modify the line numbers and other debugging information at runtime, and that's what I will show you on the next post.</p>
-
-<p>I will properly synchronize Clojure source code with JVM Bytecode, meaning I will synchronize code trees, that way I will not only add proper line references, but I will know
-which bytecode corresponds with which <code>s-expression</code> in your source.</p>
-
-<p>Doing Clojure I usually end up with lines of code looking like this:</p>
-
-<p><code>clojure
-(map (comp first rest (partial filter identity)) (split-line line separator))
-</code></p>
-
-<p>What use do I have for a <em>line base debugger</em> with that code??</p>
-
-<p>I want an <strong>s-expression based debugger</strong>, don't you?</p>
-
-<p>One more reason we have to envy <a href="http://racket-lang.org/">Dr Racket</a>, whose debugger already knows about them.</p>
-
-<p><img class="center" src="/images/blog/racket-debug.png" width="580" height="480" title="Racket Debugger" alt="Racket Debugger"></p>
-
-<p>Stay tuned to see it working on the JVM.</p>
-
-<p>Meanwhile, <a href="http://www.twitter.com/guilespi">I'm guilespi</a> on Twitter.</p>
+<p>The <code>shrink-sequence</code> function being:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">shrink-sequence</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">cmd-seq</span> <span class="nv">state-seq</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">letfn</span> <span class="p">[(</span><span class="nf">shrink-subseq</span> <span class="p">[</span><span class="nv">s</span><span class="p">]</span>
+</span><span class='line'>            <span class="p">(</span><span class="nb">when </span><span class="p">(</span><span class="nb">seq </span><span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>              <span class="p">[(</span><span class="nb">map </span><span class="o">#</span><span class="p">(</span><span class="nb">get </span><span class="nv">cmd-seq</span> <span class="nv">%</span><span class="p">)</span> <span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>               <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="p">(</span><span class="nf">remove-seq</span> <span class="nv">s</span><span class="p">)</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nb">filter </span><span class="p">(</span><span class="nb">partial </span><span class="nv">valid-sequence?</span> <span class="nv">state-seq</span> <span class="nv">cmd-seq</span><span class="p">))</span>
+</span><span class='line'>                    <span class="p">(</span><span class="nf">mapv</span> <span class="nv">shrink-subseq</span><span class="p">))]))]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">shrink-subseq</span> <span class="p">(</span><span class="nb">range </span><span class="mi">0</span> <span class="p">(</span><span class="nb">count </span><span class="nv">cmd-seq</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Highlights:</p>
+
+<ul>
+<li>Returns a rose tree in the form <code>[parent childs]</code>.</li>
+<li><code>remove-seq</code> generates a sequence of subsequences with only one element removed.</li>
+<li><code>valid-sequence?</code> uses <code>postcondition</code> to validate the shrinked seq.</li>
+<li>Recursively shrinks the shrunk childs until nothing&#8217;s left.</li>
+</ul>
+
+
+<h2>Putting all together</h2>
+
+<p>I&#8217;ve put together a running sample for you to check out <a href="https://github.com/guilespi/fsm-test-check/blob/master/src/fsm_test_check/core.clj">here</a>.</p>
+
+<p>There&#8217;s only one property defined: <em>applying all the generated transactions should return true</em>, but it fails when there are two delete commands present.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">apply-tx</span>
+</span><span class='line'>  <span class="s">&quot;Apply transactions fails when there are two delete commands&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">tx-log</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">-&gt;&gt;</span> <span class="nv">tx-log</span>
+</span><span class='line'>       <span class="p">(</span><span class="nb">filter </span><span class="o">#</span><span class="p">(</span><span class="nb">= </span><span class="ss">:delete-cmd</span> <span class="p">(</span><span class="ss">:type</span> <span class="nv">%</span><span class="p">)))</span>
+</span><span class='line'>       <span class="nv">count</span>
+</span><span class='line'>       <span class="p">(</span><span class="nb">&gt; </span><span class="mi">2</span><span class="p">)))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">commands-consistent-apply</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">prop/for-all</span> <span class="p">[</span><span class="nv">tx-log</span> <span class="p">(</span><span class="nf">cmd-seq</span> <span class="p">{</span><span class="ss">:people</span> <span class="p">[]}</span> <span class="p">{</span><span class="ss">:add-cmd</span> <span class="nv">add-cmd</span> <span class="ss">:delete-cmd</span> <span class="nv">delete-cmd</span><span class="p">})]</span>
+</span><span class='line'>                <span class="p">(</span><span class="nb">true? </span><span class="p">(</span><span class="nf">apply-tx</span> <span class="nv">tx-log</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">tc/quick-check</span> <span class="mi">10</span> <span class="nv">commands-consistent-apply</span><span class="p">)</span>
+</span><span class='line'><span class="nv">=&gt;</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">{</span><span class="ss">:result</span> <span class="nv">false</span>, <span class="ss">:seed</span> <span class="mi">1428695347616</span>, <span class="ss">:failing-size</span> <span class="mi">7</span>, <span class="ss">:num-tests</span> <span class="mi">8</span>,
+</span><span class='line'> <span class="ss">:fail</span> <span class="p">[({</span><span class="ss">:id</span> <span class="mi">6</span>, <span class="ss">:name</span> <span class="s">&quot;8&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-4</span>, <span class="ss">:name</span> <span class="s">&quot;KvoOq&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-6</span>, <span class="ss">:name</span> <span class="s">&quot;hWn&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">6</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>         <span class="p">{</span><span class="ss">:id</span> <span class="mi">-4</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})]</span>,
+</span><span class='line'> <span class="ss">:shrunk</span> <span class="p">{</span><span class="ss">:total-nodes-visited</span> <span class="mi">55</span>, <span class="ss">:depth</span> <span class="mi">16</span>, <span class="ss">:result</span> <span class="nv">false</span>,
+</span><span class='line'>          <span class="ss">:smallest</span> <span class="p">[({</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:name</span> <span class="s">&quot;0&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">-2</span>, <span class="ss">:name</span> <span class="s">&quot;2&quot;</span>, <span class="ss">:type</span> <span class="ss">:add-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">0</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">}</span>
+</span><span class='line'>                      <span class="p">{</span><span class="ss">:id</span> <span class="mi">-2</span>, <span class="ss">:type</span> <span class="ss">:delete-cmd</span><span class="p">})]}}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>If you look closely the failing test case has three <code>add</code> commands, but when shrunk only two needed in order to fail appear.</p>
+
+<p>Have fun!</p>
+
+<p>I&#8217;m <a href="https://twitter.com/guilespi">guilespi</a> on Twitter.</p>
 ]]></content>
   </entry>
   
   <entry>
-    <title type="html"><![CDATA[Decompiling Clojure I]]></title>
-    <link href="http://guilespi.github.com/blog/2014/04/13/decompiling-clojure-i/"/>
-    <updated>2014-04-13T17:19:00-03:00</updated>
-    <id>http://guilespi.github.com/blog/2014/04/13/decompiling-clojure-i</id>
-    <content type="html"><![CDATA[<p>This is the first in a series of articles about decompiling Clojure, that is, going from JVM bytecode created by the Clojure compiler, to some kind of higher level language, not necessarily Clojure.</p>
+    <title type="html"><![CDATA[Property-based testing using QuickCheck]]></title>
+    <link href="http://guilespi.github.com/blog/2015/04/12/property-based-testing-using-quickcheck/"/>
+    <updated>2015-04-12T17:05:00-03:00</updated>
+    <id>http://guilespi.github.com/blog/2015/04/12/property-based-testing-using-quickcheck</id>
+    <content type="html"><![CDATA[<p>Last year I attended <a href="https://www.youtube.com/playlist?list=PLZdCLR02grLp__wRg5OTavVj4wefg69hM">Clojure/West</a> in San Francisco, and was lucky enough to be at the talk by <a href="http://www.cse.chalmers.se/~rjmh/">John Hughes</a>, called <a href="https://www.youtube.com/watch?v=zi0rHwfiX1Q">Testing the hard stuff and staying sane</a>.</p>
 
-<p>This article was written in the scope of a larger project, building a better Clojure debugger, which I'll probably blog about in the future.</p>
+<p>I had been previously exposed to some of the concepts of generative testing, particularly Haskell&#8217;s own QuickCheck, but never took the time to do something with it, this talk by John Hughes really stroke a chord on the usefulness of generative -or property based- testing, and how much effort you can save by knowing when and <em>how</em> to use it.</p>
 
-<p>These articles are going to build form the ground up, so you may skip forward if you find some of the stuff obvious.</p>
+<p>I&#8217;ve been using Clojure <code>test.check</code> for a while, and since I&#8217;m preparing a <a href="http://testing.uy">conference talk</a> on the subject, I decided to write something about it.</p>
 
-<h1>Clojure targets the JVM</h1>
+<p>So bear with me, in this two-entry blog post I&#8217;ll try to convince you why down the road, it may save your ass too.</p>
 
-<p>To be more precise, there is a <a href="https://github.com/clojure/clojure">Clojure compiler targeting the JVM</a>, there's also one <a href="https://github.com/clojure/clojurescript">targeting Javascript</a>, one for <a href="https://github.com/richhickey/clojure-clr">the CLR</a> and there are some less known projects <a href="https://github.com/raph-amiard/clojurescript-lua">targeting lua</a> or <a href="https://github.com/schani/clojurec">even C</a>.</p>
+<h2>What generative testing is not</h2>
 
-<p>But the official <a href="http://clojure.com/">clojure core</a> efforts are mainly on the JVM, which stands for <em>Java Virtual Machine</em>.</p>
+<p>Probably the reason I&#8217;ve always looked down upon generative testing, was thinking it was just about random/junk data generation, for the too-lazy-to-think-your-own-test-cases kind of attitude.</p>
 
-<p>That means when you write some clojure code:</p>
+<p>Well, that&#8217;s <strong>not</strong> what generative testing is about.</p>
 
-<p>```clojure
-(ns hello-world)</p>
+<p>You <em>will</em> have data generators for some input domain values, but trying to generate random noise to make the program fail is just <a href="http://en.wikipedia.org/wiki/Fuzz_testing">fuzzy testing</a>, and generative testing is more than that.</p>
 
-<p>(println "Hello World")</p>
+<p>How?</p>
 
-<p>```
-You won't get a native binary, for instance a x86 <a href="http://msdn.microsoft.com/en-us/magazine/cc301805.aspx">PE</a> or <a href="http://www.skyfree.org/linux/references/ELF_Format.pdf">ELF</a> file, although it's entirely possible to write a compiler to do it.</p>
+<h2>On Types vs. Tests</h2>
 
-<p>When you target a particular runtime though, you usually get a different set of functions to interact with the host, there's a lot of language primitives just to deal with <a href="http://clojure.org/java_interop">Java inter operation</a> which do not
-migrate easily to other runtimes or virtual machines.</p>
+<p><a href="http://blog.guillermowinkler.com/blog/2012/11/14/neither-types-nor-tests-will-solve-your-data-coverage-problem/">I&#8217;ve written before</a> about the difficulty of using types to prove your program is correct. Some people will always say you can do it with type systems(and types even more complex than the program under proof), and you can <a href="https://coq.inria.fr/a-short-introduction-to-coq">always use Coq</a>.</p>
 
-<h1>The JVM is about Java, or is it?</h1>
+<p>But for everyday programming languages and type systems it&#8217;s not that easy, say for instance this <code>Java</code> function (assuming such thing exists).</p>
 
-<p>This doesn't mean that the JVM can <em>only</em> run programs written in Java.</p>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kt">int</span> <span class="nf">f1</span><span class="o">(</span><span class="kt">int</span> <span class="n">x</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>    <span class="k">return</span> <span class="mi">1</span><span class="o">/</span><span class="n">x</span><span class="o">;</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>In fact, Clojure doesn't use Java as an intermediate language before compiling, the Clojure compiler for the JVM generates <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html">JVM bytecode</a> directly <a href="http://asm.ow2.org/">using the ASM library</a>.</p>
 
-<p>So, what does it mean the JVM is about Java if you can compile directly to bytecode without a mandatory visit to <a href="http://steve-yegge.blogspot.com/2006/03/execution-in-kingdom-of-nouns.html">the kingdom of nouns</a>?</p>
+<p>You can say just by looking at the function, that any integer except zero will succeed.</p>
 
-<p>Besides its name, the JVM was designed by James Gosling in 1992 to support the <a href="http://docs.oracle.com/javase/specs/jvms/se5.0/html/Preface.doc.html">Oak Programming Language</a>, before evolving into its current form.</p>
+<p>In this other case:</p>
 
-<p>Its main responsibility is to achieve independence from hardware and operating system, and like a real machine, it has an instruction set and manipulates memory at runtime, and the truth is the JVM knows nothing about the Java Programming Language, it only knows of a particularly binary format, <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html">the class file format</a>, which contains bytecode and other information.</p>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="kt">int</span> <span class="nf">f2</span><span class="o">(</span><span class="n">String</span> <span class="n">x</span><span class="o">)</span> <span class="o">{</span>
+</span><span class='line'>    <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="na">length</span><span class="o">();</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>So, any programming language with features that can be expressed in terms of a valid class file, can by hosted on the JVM.</p>
 
-<p>But the truth is that the class file format, maintains a lot of resemblance with concepts appearing in Java, or any other OO programming language as a matter of fact, to name a few:</p>
+<p>The function will succeed except when <code>x</code> is <code>null</code>.</p>
+
+<p>So assuming that&#8217;s expected behavior, you can write some tests to check on those special failure cases.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+</pre></td><td class='code'><pre><code class='java'><span class='line'><span class="nd">@Test</span><span class="o">(</span><span class="n">expected</span><span class="o">=</span><span class="n">ArithmeticException</span><span class="o">.</span><span class="na">class</span><span class="o">)</span>
+</span><span class='line'><span class="kd">public</span> <span class="kt">void</span> <span class="nf">testDivideByZero</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>    <span class="n">f1</span><span class="o">(</span><span class="kc">null</span><span class="o">);</span>
+</span><span class='line'><span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'><span class="c1">//this is just a unit test</span>
+</span><span class='line'><span class="nd">@Test</span>
+</span><span class='line'><span class="kd">public</span> <span class="kt">void</span> <span class="nf">testUnity</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>    <span class="n">assertEquals</span><span class="o">(</span><span class="mi">1</span><span class="o">,</span> <span class="n">f1</span><span class="o">(</span><span class="mi">1</span><span class="o">));</span>
+</span><span class='line'><span class="o">}</span>
+</span><span class='line'>
+</span><span class='line'><span class="nd">@Test</span><span class="o">(</span><span class="n">expected</span><span class="o">=</span><span class="n">NullPointerException</span><span class="o">.</span><span class="na">class</span><span class="o">)</span>
+</span><span class='line'><span class="kd">public</span> <span class="kt">void</span> <span class="nf">testNullPointerException</span><span class="o">()</span> <span class="o">{</span>
+</span><span class='line'>    <span class="n">f2</span><span class="o">(</span><span class="kc">null</span><span class="o">);</span>
+</span><span class='line'><span class="o">}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>But for the sake of making and argument, assume you&#8217;re testing <code>openssl</code> and this is the function you have&#8230;</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+<span class='line-number'>15</span>
+<span class='line-number'>16</span>
+<span class='line-number'>17</span>
+<span class='line-number'>18</span>
+<span class='line-number'>19</span>
+<span class='line-number'>20</span>
+<span class='line-number'>21</span>
+<span class='line-number'>22</span>
+<span class='line-number'>23</span>
+<span class='line-number'>24</span>
+<span class='line-number'>25</span>
+<span class='line-number'>26</span>
+<span class='line-number'>27</span>
+<span class='line-number'>28</span>
+<span class='line-number'>29</span>
+<span class='line-number'>30</span>
+<span class='line-number'>31</span>
+<span class='line-number'>32</span>
+<span class='line-number'>33</span>
+<span class='line-number'>34</span>
+<span class='line-number'>35</span>
+<span class='line-number'>36</span>
+<span class='line-number'>37</span>
+<span class='line-number'>38</span>
+</pre></td><td class='code'><pre><code class='c'><span class='line'><span class="kt">int</span> <span class="nf">dtls1_process_heartbeat</span><span class="p">(</span><span class="n">SSL</span> <span class="o">*</span><span class="n">s</span><span class="p">)</span>
+</span><span class='line'>  <span class="p">{</span>
+</span><span class='line'>    <span class="p">...</span>    
+</span><span class='line'>  <span class="cm">/* Read type and payload length first */</span>
+</span><span class='line'>  <span class="k">if</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">16</span> <span class="o">&gt;</span> <span class="n">s</span><span class="o">-&gt;</span><span class="n">s3</span><span class="o">-&gt;</span><span class="n">rrec</span><span class="p">.</span><span class="n">length</span><span class="p">)</span>
+</span><span class='line'>      <span class="k">return</span> <span class="mi">0</span><span class="p">;</span> <span class="cm">/* silently discard */</span>
+</span><span class='line'>  <span class="n">hbtype</span> <span class="o">=</span> <span class="o">*</span><span class="n">p</span><span class="o">++</span><span class="p">;</span>
+</span><span class='line'>  <span class="n">n2s</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">payload</span><span class="p">);</span>
+</span><span class='line'>  <span class="k">if</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">payload</span> <span class="o">+</span> <span class="mi">16</span> <span class="o">&gt;</span> <span class="n">s</span><span class="o">-&gt;</span><span class="n">s3</span><span class="o">-&gt;</span><span class="n">rrec</span><span class="p">.</span><span class="n">length</span><span class="p">)</span>
+</span><span class='line'>      <span class="k">return</span> <span class="mi">0</span><span class="p">;</span> <span class="cm">/* silently discard per RFC 6520 sec. 4 */</span>
+</span><span class='line'>  <span class="n">pl</span> <span class="o">=</span> <span class="n">p</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'>  <span class="k">if</span> <span class="p">(</span><span class="n">hbtype</span> <span class="o">==</span> <span class="n">TLS1_HB_REQUEST</span><span class="p">)</span>
+</span><span class='line'>      <span class="p">{</span>
+</span><span class='line'>      <span class="kt">unsigned</span> <span class="kt">char</span> <span class="o">*</span><span class="n">buffer</span><span class="p">,</span> <span class="o">*</span><span class="n">bp</span><span class="p">;</span>
+</span><span class='line'>      <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">write_length</span> <span class="o">=</span> <span class="mi">1</span> <span class="cm">/* heartbeat type */</span> <span class="o">+</span>
+</span><span class='line'>                      <span class="mi">2</span> <span class="cm">/* heartbeat length */</span> <span class="o">+</span>
+</span><span class='line'>                      <span class="n">payload</span> <span class="o">+</span> <span class="n">padding</span><span class="p">;</span>
+</span><span class='line'>      <span class="kt">int</span> <span class="n">r</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'>      <span class="k">if</span> <span class="p">(</span><span class="n">write_length</span> <span class="o">&gt;</span> <span class="n">SSL3_RT_MAX_PLAIN_LENGTH</span><span class="p">)</span>
+</span><span class='line'>          <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'>      <span class="cm">/* Allocate memory for the response, size is 1 byte</span>
+</span><span class='line'><span class="cm">      * message type, plus 2 bytes payload length, plus</span>
+</span><span class='line'><span class="cm">      * payload, plus padding</span>
+</span><span class='line'><span class="cm">      */</span>
+</span><span class='line'>      <span class="n">buffer</span> <span class="o">=</span> <span class="n">OPENSSL_malloc</span><span class="p">(</span><span class="n">write_length</span><span class="p">);</span>
+</span><span class='line'>      <span class="n">bp</span> <span class="o">=</span> <span class="n">buffer</span><span class="p">;</span>
+</span><span class='line'>
+</span><span class='line'>      <span class="cm">/* Enter response type, length and copy payload */</span>
+</span><span class='line'>      <span class="o">*</span><span class="n">bp</span><span class="o">++</span> <span class="o">=</span> <span class="n">TLS1_HB_RESPONSE</span><span class="p">;</span>
+</span><span class='line'>      <span class="n">s2n</span><span class="p">(</span><span class="n">payload</span><span class="p">,</span> <span class="n">bp</span><span class="p">);</span>
+</span><span class='line'>      <span class="n">memcpy</span><span class="p">(</span><span class="n">bp</span><span class="p">,</span> <span class="n">pl</span><span class="p">,</span> <span class="n">payload</span><span class="p">);</span>
+</span><span class='line'>      <span class="n">bp</span> <span class="o">+=</span> <span class="n">payload</span><span class="p">;</span>
+</span><span class='line'>      <span class="cm">/* Random padding */</span>
+</span><span class='line'>      <span class="n">RAND_pseudo_bytes</span><span class="p">(</span><span class="n">bp</span><span class="p">,</span> <span class="n">padding</span><span class="p">);</span>
+</span><span class='line'>    <span class="p">...</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Unless you&#8217;ve been living under a rock, you should have heard about <a href="http://heartbleed.com/">the heartbleed openssl bug</a>, and it&#8217;s just what you think, the bug was in the heartbeat processing function above, and <a href="http://git.openssl.org/gitweb/?p=openssl.git;a=commitdiff;h=96db902">this is the patch with the fix</a>.</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/opensslpatch.png" width="680" height="780" title="'Openssl heartbleed patch'" ></p>
+
+<p>Who was the motherfucker that missed that unit test, huh?</p>
+
+<p>When the function logic is more complex, it&#8217;s exponentially more difficult to define both types and tests that make us feel more confident about pushing our nasty bits of code to a production environment.</p>
+
+<p>And that&#8217;s because the possible states our system or function can be, expand like hell when new variables and conditional branches are added (more on this later).</p>
+
+<h2>Code Coverage vs. Domain Coverage</h2>
+
+<p>Looking at the function above you can see the problem is not on some untested code path, but on some <em>values</em> used on function invocation.</p>
+
+<p>Some people aim for 100% code coverage, according to <a href="http://en.wikipedia.org/wiki/Code_coverage">Wikipedia</a></p>
+
+<p><em>In computer science, code coverage is a measure used to describe the degree to which the source code of a program is tested by a particular test suite. A program with high code coverage has been more thoroughly tested and has a lower chance of containing software bugs than a program with low code coverage.</em></p>
+
+<p>Which is great, but since you can have 100% code coverage of the <code>1/x</code> function, but regarding domain coverage (for which values of <code>x</code> the function works as expected) you have nothing.</p>
+
+<p><strong>Code coverage without domain coverage is just half the picture.</strong></p>
+
+<p>Even unit tests prove <em>almost</em> nothing.</p>
+
+<h2>Tests do not prove correctness</h2>
+
+<p>There&#8217;s a great quote by <a href="http://en.wikiquote.org/wiki/Edsger_W._Dijkstra">Edsger Dijkstra</a> from Notes on Structured Programming that says</p>
+
+<p><em>Program testing can be used to show the presence of bugs, but never to show their absence!</em></p>
+
+<p>Which is to say, no matter how many unit tests you write, you&#8217;re only proving that your program works (or fails) for the set of inputs you have selected when writing your tests.</p>
+
+<p>It doesn&#8217;t say a thing about the generalities or about a general property of the system or function under test.</p>
+
+<h2>What is generative testing?</h2>
+
+<p>So what <em>is</em> generative testing?</p>
+
+<p>In generative testing you describe some properties your system or function must comply with, and the test runner provides randomized data to check if the property holds for that data, that&#8217;s why it&#8217;s also known as <code>property-based</code> testing.</p>
+
+<p>A <code>property</code> is a high-level specification of behavior that should hold for a range of data points.</p>
+
+<p>So a property works somewhat like a <em>domain iterator</em>, bringing a little bit closer types and tests.</p>
+
+<p>Since you&#8217;re defining how the system should behave for a particular <em>domain</em> of values, not when the program is compiled, but when it&#8217;s <strong>run</strong>.</p>
+
+<h2>Why random data generation is important?</h2>
+
+<p>In the StrangeLoop 2014 conference, Joe Armstrong gave a talk called <a href="https://www.youtube.com/watch?v=lKXe3HUG2l4">The mess we&#8217;re in</a>, where he discussed system&#8217;s complexity, go watch it since it&#8217;s real fun.</p>
+
+<p>He says that a <code>C</code> program with only six <code>32 bit</code> integers, has the same number of states that atoms exist on the planet, so testing your program by computing all combinations it&#8217;s going to take a <em>really long</em> time.</p>
+
+<p>And if it&#8217;s almost impossible to find the number of states computationally, imagine trying to find the number of possible failing states <em>manually</em>.</p>
+
+<p>I&#8217;ve been in the position of having to hunt a bug that occurs only once a year in a system processing millions of transactions daily, and it&#8217;s not fun at all. Pray to the logging gods the proper piece of information revealing the culprit is logged, so you don&#8217;t have to wait another year for the bug to show up.</p>
+
+<p>If your software runs inside a car, would you wait for the next deadly crash to analyze that dead-driver log file? Maybe that&#8217;s why <a href="http://www.quviq.com/volvo-quickcheck/">Volvo uses QuickCheck</a> to test embedded systems.</p>
+
+<p>Generative testing helps you put and test your system in so many different states it would be impossible to do manually.</p>
+
+<h2>What&#8217;s in a property</h2>
+
+<p>So, should we throw away all of our type systems and unit tests?</p>
+
+<p>Not so fast, property based testing is not a <strong>replacement</strong> for types nor for unit tests.</p>
+
+<p>Haskell and Scala both have their frameworks for property based testing (QuickCheck and ScalaTest) and are strongly typed languages.</p>
+
+<p>Property based testing helps us define considerations for our programs where type systems do not reach, and where dynamically typed languages have a void.</p>
+
+<p>So what does a property look like?</p>
+
+<p>All concepts so far hold true for any language with a generative testing framework, many re-implementations exist from the <a href="http://en.wikipedia.org/wiki/QuickCheck">original QuickCheck version</a>, from <code>C</code>, <code>C++</code>, <code>Ruby</code>, <code>Clojure</code>, <code>Javascript</code>, <code>Java</code>, <code>Scala</code>, etc. So now I will show you a couple of examples in different languages, just for you to grasp the basic property definition semantics, which is quite similar along the implementations.</p>
+
+<p>These examples are not meant to show how powerful generative testing can be, yet.</p>
+
+<h3>Sorting in Javascript</h3>
+
+<p>Let&#8217;s say you want to test a <code>sort</code> function of yours, and instead of specifying individual test cases for particular arrays of integers, you define a property, which says that after sorting the array, the last element should always be greater than the first one.</p>
+
+<p>This is what the property looks like in Javascript&#8217;s <a href="www.jscheck.org">JSCheck</a></p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+</pre></td><td class='code'><pre><code class='javascript'><span class='line'><span class="nx">JSC</span><span class="p">.</span><span class="nx">reps</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span>
+</span><span class='line'><span class="nx">JSC</span><span class="p">.</span><span class="nx">test</span><span class="p">(</span>
+</span><span class='line'>    <span class="s2">&quot;First is lower than last after sort&quot;</span><span class="p">,</span>
+</span><span class='line'>    <span class="kd">function</span> <span class="p">(</span><span class="nx">verdict</span><span class="p">,</span> <span class="nx">v</span><span class="p">)</span> <span class="p">{</span>
+</span><span class='line'>        <span class="kd">var</span> <span class="nx">sorted</span> <span class="o">=</span> <span class="nx">v</span><span class="p">.</span><span class="nx">sort</span><span class="p">();</span>
+</span><span class='line'>        <span class="k">return</span> <span class="nx">verdict</span><span class="p">(</span><span class="nx">sorted</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="nx">sorted</span><span class="p">[</span><span class="nx">sorted</span><span class="p">.</span><span class="nx">length</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]);</span>
+</span><span class='line'>    <span class="p">},</span>
+</span><span class='line'>    <span class="p">[</span>
+</span><span class='line'>        <span class="nx">JSC</span><span class="p">.</span><span class="nx">array</span><span class="p">([</span><span class="nx">JSC</span><span class="p">.</span><span class="nx">integer</span><span class="p">()]])</span>
+</span><span class='line'>    <span class="p">]</span>
+</span><span class='line'><span class="p">);</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>You don&#8217;t say which particular arrays, just any array of integers must comply with the property, the framework will generate values for you (in this case 10 repetitions will be run).</p>
+
+<p>This is the result:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='javascript'><span class='line'><span class="nx">First</span> <span class="nx">is</span> <span class="nx">lower</span> <span class="nx">than</span> <span class="nx">last</span> <span class="nx">after</span> <span class="nx">sort</span><span class="o">:</span> <span class="mi">10</span> <span class="nx">cases</span> <span class="nx">tested</span><span class="p">,</span> <span class="mi">0</span> <span class="nx">pass</span><span class="p">,</span> <span class="mi">10</span> <span class="nx">fail</span>
+</span><span class='line'> <span class="nx">FAIL</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="p">([</span><span class="mi">3</span><span class="p">])</span>
+</span><span class='line'> <span class="nx">FAIL</span> <span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="p">([</span><span class="mi">5</span><span class="p">])</span>
+</span><span class='line'> <span class="nx">FAIL</span> <span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="p">([</span><span class="mi">7</span><span class="p">])</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Did you spot when the property doesn&#8217;t hold?</p>
+
+<h3>Sorting in Clojure</h3>
+
+<p>This is what the same property looks like in Clojure&#8217;s <a href="https://github.com/clojure/test.check">test.check</a>.</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">prop-sorted-first-less-than-last</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">prop/for-all</span> <span class="p">[</span><span class="nv">v</span> <span class="p">(</span><span class="nf">gen/not-empty</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">))]</span>
+</span><span class='line'>    <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">s</span> <span class="p">(</span><span class="nb">sort </span><span class="nv">v</span><span class="p">)]</span>
+</span><span class='line'>      <span class="p">(</span><span class="nb">&lt; </span><span class="p">(</span><span class="nb">first </span><span class="nv">s</span><span class="p">)</span> <span class="p">(</span><span class="nb">last </span><span class="nv">s</span><span class="p">)))))</span>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="nf">tc/quick-check</span> <span class="mi">200</span> <span class="nv">prop-sorted-first-less-than-last</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>With the following result:</p>
+
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'>   <span class="nv">=&gt;</span> <span class="p">{</span><span class="ss">:result</span> <span class="nv">false</span>, <span class="ss">:failing-size</span> <span class="mi">0</span>, <span class="ss">:num-tests</span> <span class="mi">1</span>, <span class="ss">:fail</span> <span class="p">[[</span><span class="mi">3</span><span class="p">]]</span>,
+</span><span class='line'>       <span class="ss">:shrunk</span> <span class="p">{</span><span class="ss">:total-nodes-visited</span> <span class="mi">5</span>, <span class="ss">:depth</span> <span class="mi">2</span>, <span class="ss">:result</span> <span class="nv">false</span>,
+</span><span class='line'>                <span class="ss">:smallest</span> <span class="p">[[</span><span class="mi">0</span><span class="p">]]}}</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>As you see, <strong>both fail</strong>, since they doesn&#8217;t hold for single element arrays.</p>
+
+<p>The basic semantic for both languages is the same, you need:</p>
 
 <ul>
-<li>A <code>class</code> file corresponds to a Class</li>
-<li>A <code>class</code> file has members</li>
-<li>A <code>class</code> file has methods</li>
-<li>Methods of the <code>class</code> file can be static or instance methods</li>
-<li>There are primitive types and reference types, that can be stored in variables</li>
-<li>Exceptions are an instance or subclass of <code>Throwable</code></li>
-<li>etc</li>
+<li>A property name (or claim in JSCheck)</li>
+<li>Some data generator for your input values</li>
+<li>A verdict or testing function who validates the property</li>
 </ul>
 
 
-<p>So, we can say the JVM is <strong>not</strong> agnostic regarding the concepts supported by the language, as <a href="http://en.wikipedia.org/wiki/Lisp_Machines">the LISP machines</a> were not agnostic either.</p>
+<blockquote><p>This encourages a higher level approach to testing in the form of abstract invariant functions should satisfy universally.</p><footer><strong>http://book.realworldhaskell.org/read/testing-and-quality-assurance.html</strong></footer></blockquote>
 
-<h1>Clojure compiles to bytecode</h1>
 
-<p>So we have a language like Clojure, with many concepts not easily mapped to the JVM spec, but that it was mapped none the less, how?</p>
+<h2>Shrinking</h2>
 
-<h2>Namespaces do not exist</h2>
+<p>One of the best features of QuickCheck is the ability to shrink your failure cases to the minimum failing case (not all the implementations have it by the way).</p>
 
-<p>Maybe you think Clojure namespaces correspond to a <strong>class</strong>, and each method in the namespace is mapped to a method in the class.</p>
+<p>When generating random data, you may end up with a failing case too big to rationalize (for instance a thousand elements vector), but it doesn&#8217;t necessarily means that all the 1000 elements are needed for the function under test to fail.</p>
 
-<p>Well, that is not the case.</p>
+<p>When QuickCheck finds a failing case, it tries to shrink the input data to the <em>smallest</em> failing case.</p>
 
-<p>Namespaces <a href="http://www.infoq.com/presentations/What-Sucks-about-Clojure-and-Why-You-ll-Love-It-Anyway">were criticized before</a> for being tough, and the truth is they're used for proper modularity,
-but do not map to an entity in the JVM. They're equivalent to java packages or modules in other languages.</p>
+<p>This is a powerful feature if you don&#8217;t want to repeat many unnecessary steps in order to reproduce a problem.</p>
 
-<h2>Each function is a class</h2>
+<p>A simple example to illustrate the feature comes from <code>test.check</code> samples.</p>
 
-<p>Each function in your namespace will get compiled to a complete different class. That's something you can easily confirm listing the files under <code>target/classes</code> in a leiningen project directory.</p>
+<p>Here a property must hold for all integer vectors, and it is that no vector should have the element <code>42</code> in it.</p>
 
-<p>```
-git:(master) ✗ ls target/classes/</p>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="nv">prop-no-42</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">prop/for-all</span> <span class="p">[</span><span class="nv">v</span> <span class="p">(</span><span class="nf">gen/vector</span> <span class="nv">gen/int</span><span class="p">)]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nb">not </span><span class="p">(</span><span class="nb">some </span><span class="o">#</span><span class="p">{</span><span class="mi">42</span><span class="p">}</span> <span class="nv">v</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>config$fn<strong>292.class                                             <br/>
-routes</strong>init.class
-config$loading<strong>4910</strong>auto<strong>.class                               <br/>
-config$read_environment$fn</strong>300.class                           <br/>
-config$read_environment.class                                    <br/>
-config$read_properties$iter<strong>304</strong>308$fn<strong>309$fn</strong>310.class  <br/>
-server  <br/>
-server$<em>main.class
-server$</em>main$fn<strong>4006.class
-server$fn</strong>3939.class
-```</p>
 
-<p>You will find a <code>.class</code> file for each function you have defined, <code>namespace$function.class</code> being the standard syntax.</p>
+<p>When the tests are run, <code>test.check</code> find a failing case being the vector <code>[10 1 28 40 11 -33 42 -42 39 -13 13 -44 -36 11 27 -42 4 21 -39]</code>, which is <strong>not</strong> the minimum failing case.</p>
 
-<h2>Each anonymous function is also a class</h2>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="nf">tc/quick-check</span> <span class="mi">100</span> <span class="nv">prop-no-42</span><span class="p">)</span>
+</span><span class='line'><span class="c1">;; =&gt; {:result false,</span>
+</span><span class='line'>       <span class="ss">:failing-size</span> <span class="mi">45</span>,
+</span><span class='line'>       <span class="ss">:num-tests</span> <span class="mi">46</span>,
+</span><span class='line'>       <span class="ss">:fail</span> <span class="p">[[</span><span class="mi">10</span> <span class="mi">1</span> <span class="mi">28</span> <span class="mi">40</span> <span class="mi">11</span> <span class="mi">-33</span> <span class="mi">42</span> <span class="mi">-42</span> <span class="mi">39</span> <span class="mi">-13</span> <span class="mi">13</span> <span class="mi">-44</span> <span class="mi">-36</span> <span class="mi">11</span> <span class="mi">27</span> <span class="mi">-42</span> <span class="mi">4</span> <span class="mi">21</span> <span class="mi">-39</span><span class="p">]]</span>,
+</span><span class='line'>       <span class="ss">:shrunk</span> <span class="p">{</span><span class="ss">:total-nodes-visited</span> <span class="mi">38</span>,
+</span><span class='line'>                <span class="ss">:depth</span> <span class="mi">18</span>,
+</span><span class='line'>                <span class="ss">:result</span> <span class="nv">false</span>,
+</span><span class='line'>                <span class="ss">:smallest</span> <span class="p">[[</span><span class="mi">42</span><span class="p">]]}}</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>As you saw in the previous listing, there are many functions with numbers like <code>config$fn__292.class</code>.</p>
 
-<p>Those correspond to anonymous functions that get their own class when compiled, so if you have this code:</p>
+<p>So it starts shrinking the failing case until it reaches the smallest vector for which the property doesn&#8217;t hold, which is <code>[42]</code>.</p>
 
-<p><code>clojure
-(map #(+ 34 %) (range 10))
-</code>
-You should expect a <code>.class</code> file for the anonymous function <code>#(+ 34 %)</code>.</p>
+<p>Unfortunately <code>JSCheck</code> doesn&#8217;t shrink the failure cases, but <a href="http://jsverify.github.io/">jsverify</a> does, so if you want some shrinking on Javascript give it a try.</p>
 
-<h2><em>class</em> files don't need to be on disk</h2>
+<h2>Final thoughts</h2>
 
-<p>Many times you'll find the <code>class</code> files on disk, but it doesn't have to be that way.</p>
+<p>Since QuickCheck depends on generators to cover the domain, we need to consider those domains may be infinite or very large, so it may be impossible to find the offending failure cases. None the less, we know that by running long enough or a large enough number of tests, we have better odds of finding a problem.</p>
 
-<p>In many circumstances we're going to be modifying the <code>class</code> structure on runtime, or creating new <code>class</code> structures to be run, entirely on memory. Even the compiler can <code>eval</code> some code
-compiling to memory without creating a <code>class</code> file on disk.</p>
+<p>Regarding the name, <code>property-based</code> testing is a much better name than <code>generative</code> testing, since the later gives the idea that it&#8217;s about generating data, when it&#8217;s truly about function and system properties.</p>
 
-<h1>What does bytecode look like?</h1>
+<p>The higher level approach of property definition, coupled with the data generation and shrinking features provided by QuickCheck, really helps the case of having something more closer to <em>proofs</em> about how your system behaves.</p>
 
-<p>For the first example, I selected a real simple clojure function</p>
+<p>In the next post I&#8217;ll write about finite state machine testing using <code>test.check</code> and show more complex examples, stay tuned.</p>
 
-<p>```clojure
-(defn test-multi-let
-  []
-  (let [a 1</p>
-
-<pre><code>    b 2 
-    c 3 
-    b 4]
-9))
-</code></pre>
-
-<p>```</p>
-
-<p>To explore the bytecode we will use <code>javap</code>, simple, but does the job:</p>
-
-<p>```
-javap -c target/classes/debugee/test\$test_multi_let.class
-...
-public static {};</p>
-
-<pre><code>Code:
-   0: lconst_1
-   1: invokestatic  #19                 // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
-   4: putstatic     #21                 // Field const__0:Ljava/lang/Object;
-   7: ldc2_w        #22                 // long 2l
-  10: invokestatic  #19                 // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
-  13: putstatic     #25                 // Field const__1:Ljava/lang/Object;
-  16: ldc2_w        #26                 // long 3l
-  19: invokestatic  #19                 // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
-  22: putstatic     #29                 // Field const__2:Ljava/lang/Object;
-  25: ldc2_w        #30                 // long 4l
-  28: invokestatic  #19                 // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
-  31: putstatic     #33                 // Field const__3:Ljava/lang/Object;
-  34: ldc2_w        #34                 // long 9l
-  37: invokestatic  #19                 // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
-  40: putstatic     #37                 // Field const__4:Ljava/lang/Object;
-  43: return
-</code></pre>
-
-<p>```</p>
-
-<p>I've removed some extra information such as variable tables, we're going to be visiting those later.</p>
-
-<p>What you see here are JVM <em>assembly instructions</em>, just a subset of the JVM instruction set, generated by the Clojure compiler when feed with the sample function above.</p>
-
-<p>Before we get into more details, let me show you how that code looks after a basic decompiler pass:</p>
-
-<p><code>
-0:a = 1
-2:b = 2
-6:c = 3
-11:b = 4
-16:RETURN 9
-</code>
-Prettier uh?</p>
-
-<p>That is until you decompile this:</p>
-
-<p>```clojure
-(defn test-if
-  []
-  (if (= (inc 1) 2)</p>
-
-<pre><code>8
-9))
-</code></pre>
-
-<p>```</p>
-
-<p>And get this:</p>
-
-<p><code>
-0:IF (2 != clojure.lang.Numbers.inc(1)) GOTO 11 ELSE GOTO 18
-11:RETURN 9
-18:RETURN 8
-</code></p>
-
-<p>Who was the moron that put a <a href="http://groups.engin.umd.umich.edu/CIS/course.des/cis400/basic/basic.html"><strong>BASIC</strong></a> in my Clojure!</p>
-
-<p>Ain't it?</p>
-
-<p>Keep reading... there's more to be seen ahead.</p>
-
-<h1>The operand stack</h1>
-
-<p>I won't dwell into many details about each JVM instruction and how that translates to something resembling Clojure, or Basic for that matter, but there's one thing worth of mention, and that is the operand stack.</p>
-
-<h2>Frames</h2>
-
-<p>A new Frame is created each time a method is invoked and destroyed when the method completes, whether that information is normal or abrupt (throws an uncaught exception), frames are allocated in the JVM stack and have its own array of local variables and its own operand stack.</p>
-
-<p>If you set a breakpoint on your code, each different entry in your thread callstack, is a frame.</p>
-
-<h2>Stack</h2>
-
-<p>The operand stack is a last-in-first-out (LIFO) stack and its empty when the Frame that contains it is created, and the JVM provides instructions for loading constants or variables into the operand stack, and to put values from the operand stack in variables.</p>
-
-<p>The operand stack is usually used to prepare parameters to be passed to methods and to receive method results, <a href="http://markfaction.wordpress.com/2012/07/15/stack-based-vs-register-based-virtual-machine-architecture-and-the-dalvik-vm/">as opposed to using registers to do it</a>.</p>
-
-<p>So you should expect something along these lines:</p>
-
-<p>```
-f(a, b, c)</p>
-
-<p>=> compiling to</p>
-
-<p>push a
-push b
-push c
-call f</p>
-
-<p>```</p>
-
-<p>So looking again at the bytecode of the previous function:</p>
-
-<p>```clojure
-(defn test-if
-  []
-  (if (= (inc 1) 2)</p>
-
-<pre><code>8
-9))
-</code></pre>
-
-<p>```</p>
-
-<p>Here:</p>
-
-<p>```
-public java.lang.Object invoke();</p>
-
-<pre><code>Code:
-   0: lconst_1
-   1: invokestatic  #63                 // Method clojure/lang/Numbers.inc:(J)J
-   4: ldc2_w        #42                 // long 2l
-   7: lcmp
-   8: ifne          18
-  11: getstatic     #49                 // Field const__4:Ljava/lang/Object;
-  14: goto          21
-  17: pop
-  18: getstatic     #53                 // Field const__5:Ljava/lang/Object;
-  21: areturn
-</code></pre>
-
-<p>```</p>
-
-<p>We can make ourselves an interpretation about what's going on...</p>
-
-<p><code>lconst_1</code> is pushing the constant value <code>1</code> into the stack, then calling a static method with <code>invokestatic</code>, as you've already guessed that's the <code>clojure.lang.Numbers.inc(1)</code> we saw on the <em>basic</em> decompiler earlier.</p>
-
-<p>Then <code>ld2_w</code> loads the value <code>2</code> into the stack and <code>lcmp</code> will compare it against the function result, <code>ifne</code> tests for non equality and jumps to line <code>18</code> if values differ.</p>
-
-<p>One thing to consider here is that each entry on the operand stack can hold a value of any JVM type, and those must be operated in ways appropriate to their types, so many operations have a different operation code according to the type they're handling.</p>
-
-<p>So looking at this example from the JVM specification, we see the operations are prefixed with a <code>d</code> since they operate on <code>double</code> values.</p>
-
-<p><code>
-Method double doubleLocals(double,double)
-0 dload_1 // First argument in local variables 1 and 2
-1 dload_3 // Second argument in local variables 3 and 4
-2 dadd
-3 dreturn
-</code></p>
-
-<p>Which as you may have guessed, is adding double values <code>1</code> and <code>3</code>.</p>
-
-<h1>JVM auxiliary information</h1>
-
-<p>The JVM <code>class</code> format has support for some extra information that can be used for debugging purposes, some of which you can get rid from your files if you want.</p>
-
-<p>Among those we find <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.7.12">the LineNumberTable attribute</a> and the <a href="http://docs.oracle.com/javase/specs/jvms/se7/html/jvms-4.html#jvms-4.7.13">the LocalVariableTable attribute</a>, which may be used by debuggers to determine the value of a given local variable during the execution of a method.</p>
-
-<p>According to the jvm spec, the table has the following structure inside the <code>class</code> file format</p>
-
-<p>```
-LocalVariableTable_attribute {</p>
-
-<pre><code>   u2 attribute_name_index;
-   u4 attribute_length;
-   u2 local_variable_table_length;
-   {   u2 start_pc;
-       u2 length;
-       u2 name_index;
-       u2 descriptor_index;
-       u2 index;
-   } local_variable_table[local_variable_table_length];
-</code></pre>
-
-<p>   }
-```</p>
-
-<p>Basically it says which variable starts at which instruction: <code>start_pc</code> and lasts for how long: <code>length</code>.</p>
-
-<p>If we look at that table for our <code>let</code> example:</p>
-
-<p>```clojure
-(defn test-multi-let
-  []
-  (let [a 1</p>
-
-<pre><code>    b 2 
-    c 3 
-    b 4]
-9))
-</code></pre>
-
-<p>```</p>
-
-<p>We see how each variable is referenced against program counter(<code>pc</code>) line numbers (do not get confused with source file line numbers).</p>
-
-<p>```
-LocalVariableTable:</p>
-
-<pre><code>  Start  Length  Slot  Name   Signature
-         2      17     1     a   J
-         6      13     3     b   J
-        11       8     5     c   J
-        16       3     7     b   J
-         0      19     0  this   Ljava/lang/Object;
-</code></pre>
-
-<p>```</p>
-
-<p>One interesting thing though, is the <code>LineNumberTable</code></p>
-
-<p>```
-  public debugee.test$test_multi_let();</p>
-
-<pre><code>LineNumberTable:
-  line 204: 0
-</code></pre>
-
-<p>```</p>
-
-<p>Which has only <strong>one</strong> line number reference, even if our function was 7 lines long, obviously that cannot be good for a debugger expecting to step over each line!</p>
-
-<p>Next post I'll blog about the Clojure compiler and how it ends up creating that bytecode, before visiting again the decompiling process.</p>
-
-<p>I'm <a href="http://www.twitter.com/guilespi">guilespi</a> on Twitter, get in touch!</p>
+<p>I&#8217;m <a href="https://twitter.com/guilespi">guilespi</a> on Twitter, reach out!</p>
 ]]></content>
   </entry>
   
   <entry>
-    <title type="html"><![CDATA[What's so great about Reducers?]]></title>
-    <link href="http://guilespi.github.com/blog/2013/12/01/whats-so-great-about-reducers/"/>
-    <updated>2013-12-01T13:25:00-02:00</updated>
-    <id>http://guilespi.github.com/blog/2013/12/01/whats-so-great-about-reducers</id>
-    <content type="html"><![CDATA[<p>This post is about Clojure reducers, but what makes them great are the ideas behind the implementation, which may be portable to other languages.</p>
+    <title type="html"><![CDATA[Computational Investment QSTK Framework from Python to Clojure]]></title>
+    <link href="http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure/"/>
+    <updated>2012-10-29T01:07:00-02:00</updated>
+    <id>http://guilespi.github.com/blog/2012/10/29/computational-investment-qstk-framework-from-python-to-clojure</id>
+    <content type="html"><![CDATA[<p>Last week started the course on <a href="https://class.coursera.org/compinvesting1-2012-001/class/index">Computational Investing</a> from Coursera and I&#8217;ve been taking a look.</p>
 
-<p>So if you're interested in performance don't leave just yet.</p>
+<p>What caught my attention is the libraries used for portfolio construction and management, <a href="http://wiki.quantsoftware.org/index.php?title=QuantSoftware_ToolKit">QSTK</a>, an opensource python framework, based on numpy, scipy, matplotlib, pandas, etc.</p>
 
-<p>One of the primary motivators for the reducers library is <a href="http://vimeo.com/6624203">Guy Steele's ICFP '09</a> talk,
-and since I assume you don't have one hour to spend verifying I'm telling you it's worth watching,
-I'll do my best to summarize it here, which is a post you will probably scan in less than 15 seconds.</p>
+<p>Looking at the <a href="http://wiki.quantsoftware.org/index.php?title=QSTK_Tutorial_1">first tutorial</a>&#8217;s <a href="https://gist.github.com/3971007">source code</a>, saw it as an opportunity to migrate the tutorials and libraries to Clojure and get to play a little with <a href="http://incanter.org/">Incanter</a>.</p>
 
-<p>One of the main points of the talk is that <strong>the way we've been thinking about programming for the last 50 years isn't serving us anymore</strong>.</p>
+<p>I&#8217;m going to highlight what I&#8217;ve found interesting when migrating the tutorials. I&#8217;m assuming you have QSTK installed and the QS environment variable is set, since the code depends on that for data reading.</p>
 
-<p>Why?</p>
-
-<p>Because good sequential code is different from good parallel code.</p>
-
-<h1>Parallel vs. Sequential</h1>
-
-<p><code>
-+------------+--------------------------------------+-------------------------------------------------------------+
-|            |              Sequential              |                          Parallel                           |
-+------------+--------------------------------------+-------------------------------------------------------------+
-| Operations | Minimizes total number of operations | Often performs redundant operations to reduce communication |
-| Space      | Minimize space usage                 | Extra space to permit temporal decoupling                   |
-| Problem    | Linear problem decomposition         | Multiway aggregation of results                             |
-+------------+--------------------------------------+-------------------------------------------------------------+
-</code></p>
-
-<h1>The accumulator loop</h1>
-
-<p>How would you sum all the elements of an array?</p>
-
-<p><code>
-SUM = 0
-DO I = 1, 1000000
-   SUM = SUM + X(I)
-END DO
-</code></p>
-
-<p>That's right, the accumulator loop, you initialize the accumulator and update the thingy in each iteration step.</p>
-
-<p>But you're complecting how you update your sum with how you iterate your collection, ain't it?</p>
-
-<p>There's a difference between <em>what</em> you do with <em>how</em> you do it. If you say <code>SUM(X)</code> it doesn't make promises on the strategy,
-it's when you actually implement that SUM that the sequential promise is made.</p>
-
-<p><img class="center" src="/images/blog/sequential_tree.png" width="480" height="580" title="'Sequential Tree'" ></p>
-
-<p>The problem is the computation tree for the sequential strategy, if we remove the looping machinery and leave only the sums,
-there's a one million steps delay to get to the final result.</p>
-
-<p>So what's the tree you would like to see?</p>
-
-<p><img class="center" src="/images/blog/parallel_tree.png" width="480" height="580" title="'Parallel Tree'" ></p>
-
-<p>And what code you would need to write in order to get that tree? Functional code?</p>
-
-<p>Think again.</p>
-
-<p>Functional code is not the complete answer, since you can write functional code and still have the same problem.</p>
-
-<p>Since linear linked lists are inherently sequential you may be using a reducer and be on the same spot.</p>
-
-<p><code>clojure
-(reduce + (range 1 1000000))
-</code></p>
-
-<p>We need <em>multiway decomposition</em>.</p>
-
-<h1>Divide and conquer</h1>
-
-<p>Rationale behind multiway decomposition is that we need a list representation that allows for binary decomposition of the list.</p>
-
-<p><img class="center" src="/images/blog/tree_list_representation.png" width="480" height="580" title="'List as Tree'" ></p>
-
-<p>You can obviously have many redundant trees representing the same conceptual list, and there's value in redundancy since different trees have different properties.</p>
-
-<h1>Summary</h1>
-
-<ul>
-<li>Don't split a problem between first and rest, split in equal pieces.</li>
-<li>Don't create a null solution an successively update it, map inputs to singleton solutions and merge tree-wise.</li>
-<li>Combining solutions is trickier than incremental updates.</li>
-<li>Use sequential techniques near the leaves.</li>
-<li>Programs organized for parallelism can be processed in parallel or sequentially.</li>
-<li>Get rid of cons.</li>
-</ul>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="k">def </span><span class="o">^</span><span class="p">{</span><span class="ss">:dynamic</span> <span class="nv">true</span><span class="p">}</span> <span class="nv">*QS*</span> <span class="p">(</span><span class="nb">get </span><span class="p">(</span><span class="nf">System/getenv</span><span class="p">)</span> <span class="s">&quot;QS&quot;</span><span class="p">))</span>
+</span></code></pre></td></tr></table></div></figure>
 
 
-<h1>Clojure Reducers</h1>
+<p><strong>NYSE operation dates</strong></p>
 
-<p>So what are Clojure reducers?</p>
+<p>As part of the initialization process the tutorial calls a function <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.dateutil-pysrc.html#getNYSEdays">getNYSEDays</a>, which retrieves all the days there was trading at the NYSE. Migration is straightforward using incanter&#8217;s read-dataset to read file into memory and then filter the required range.</p>
 
-<p>In short, it's a library providing a new function <code>fold</code>, which is a parallel <code>reduce+combine</code>
-that shares the same shape with the old sequence based code, main difference been you get to
-provide a <code>combiner</code> function.</p>
+<div><script src='https://gist.github.com/3970987.js'></script>
+<noscript><pre><code>(defn get-NYSE-days
+  &quot;Create a set of timestamps between startday and endday
+  that correspond to the days there was trading at the NYSE&quot;
+  [start-date end-date time-of-day]
+  (let [dates-file (str *QS* &quot;/qstkutil/NYSE_dates.txt&quot;)
+        NYSE-dates (incanter.io/read-dataset dates-file)
+        fmt (formatter &quot;MM/dd/yyyy&quot;)
+        dates (incanter.core/$map #(parse fmt %) :col0 NYSE-dates)]
+    (set (filter (fn [d] (within? (interval start-date end-date) d))
+           (map #(plus % time-of-day) dates)))))
+</code></pre></noscript></div>
 
-<p>Go and read <a href="http://clojure.com/blog/2012/05/08/reducers-a-library-and-model-for-collection-processing.html">this</a> and <a href="http://clojure.com/blog/2012/05/15/anatomy-of-reducer.html">this</a> great posts by Rich Hickey.</p>
 
-<p>Back? Ok...</p>
+<p>Pay attention to the <code>time-of-day</code> set at 16 hours, <a href="http://en.wikipedia.org/wiki/List_of_market_opening_times">the time NYSE closes</a>, we&#8217;ll see it again in unexpected places.</p>
 
-<p>As Rich says in his article the accumulator style is not absent but the single initial value
-and the serial execution promises of <code>foldl/r</code> have been abandoned.</p>
+<p><strong>Data Access</strong></p>
 
-<p>For what it's worth, I've written in Clojure the <strong>Split a string into words</strong> parallel
-algorithm suggested by Steele <a href="https://gist.github.com/guilespi/7458410">here</a>, performance sucks compared against
-<code>clojure.string/split</code> but it's a nice algorithm none the less.</p>
+<p>QSTK provides a helper class called <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.DataAccess.DataAccess-class.html">DataAccess</a> used for reading and caching stock prices.</p>
 
-<p>```clojure
-(defn parallel-words
-  [w]
-  (to-word-list
-   (r/fold 100</p>
+<p>As you see here there&#8217;s some data reading happening, we&#8217;re gonna take a look at these functions since we&#8217;ll need to write them from scratch.</p>
 
-<pre><code>       combine-states
-       (fn [state char] 
-         (append-state state (process-char char))) 
-       (vec (seq w)))))
+<figure class='code'><figcaption><span>Data initialization in python tutorial </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">dataobj</span> <span class="o">=</span> <span class="n">da</span><span class="o">.</span><span class="n">DataAccess</span><span class="p">(</span><span class="s">&#39;Yahoo&#39;</span><span class="p">)</span>
+</span><span class='line'><span class="n">voldata</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;volume&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span><span class='line'><span class="n">close</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;close&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span><span class='line'><span class="n">actualclose</span> <span class="o">=</span> <span class="n">dataobj</span><span class="o">.</span><span class="n">get_data</span><span class="p">(</span><span class="n">timestamps</span><span class="p">,</span> <span class="n">symbols</span><span class="p">,</span> <span class="s">&quot;actual_close&quot;</span><span class="p">,</span><span class="n">verbose</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>We&#8217;re going to separate this in two functions, first reading symbol data from disk using again read-dataset and creating a hash-map indexed by symbol name.</p>
+
+<figure class='code'><figcaption><span>Creating a symbols hash-map of incanter datasets</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+</pre></td><td class='code'><pre><code class='Clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">read-symbols-data</span>
+</span><span class='line'>  <span class="s">&quot;Returns a hashmap of symbols/incanter datasets read from QS data directory&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">source-in</span> <span class="nv">symbols</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">data-dir</span> <span class="p">(</span><span class="nb">str </span><span class="nv">*QS*</span> <span class="s">&quot;/QSData/&quot;</span> <span class="nv">source-in</span> <span class="s">&quot;/&quot;</span><span class="p">)]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nb">reduce </span><span class="o">#</span><span class="p">(</span><span class="nb">assoc </span><span class="nv">%1</span> <span class="nv">%2</span> <span class="p">(</span><span class="nf">incanter.io/read-dataset</span> <span class="p">(</span><span class="nb">str </span><span class="nv">data-dir</span> <span class="nv">%2</span> <span class="s">&quot;.csv&quot;</span><span class="p">)</span> <span class="ss">:header</span> <span class="nv">true</span><span class="p">))</span> <span class="p">{}</span> <span class="nv">symbols</span><span class="p">)))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Then if you take a look at <code>voldata</code> in a python repl, you can see pretty much what it&#8217;s doing</p>
+
+<pre><code>                       AAPL       GLD     GOOG        $SPX       XOM
+ 2012-05-01 16:00:00  21821400   7414800  2002300  2706893315  13816900
+ 2012-05-02 16:00:00  15263900   5632300  1611500  2634854740  11108700
+ 2012-05-03 16:00:00  13948200  13172000  1868000  2673299265   9998600
 </code></pre>
 
-<p>```</p>
+<p>It&#8217;s grabbing the specified column <code>volume</code> or <code>close</code> from each symbol dataset, and it&#8217;s creating a new table with the resulting column renamed as the symbol.</p>
 
-<p>There are a couple interesting things in the code.</p>
+<p>All the get_data magic happens inside <a href="http://www.quantsoftware.org/Docs/html/QSTK.qstkutil.DataAccess-pysrc.html#DataAccess.get_data_hardread">get_data_hardread</a>, it&#8217;s an ugly piece of code making a lot of assumptions about column names, and even about market closing time. I guess you can only use this library for markets closing at 16 hours local time.</p>
 
-<ul>
-<li><code>combine-states</code> is the new combiner function, decides how to combine different splits</li>
-<li><code>100</code> is the size when to stop splitting and do a sequential processing (calls <code>reduce</code> afterwards). Defaults to <code>512</code>.</li>
-<li>The <code>fn</code> is the standard reducing function</li>
-<li>The list is transformed into a <code>vector</code> before processing.</li>
-</ul>
-
-
-<p>Last step is just for the sake of experimentation, and has all to do with the underlying structure for vectors.</p>
-
-<p>Both vectors and maps in Clojure are implemented as trees, which as we saw above, is one of the requirements for multiway decomposition.
-There's a <a href="http://hypirion.com/musings/understanding-persistent-vector-pt-1">great article here</a> about Clojure vectors, but key interest point is that it provides
-practically <code>O(1)</code> runtime for <code>subvec</code>, which is how the vector folder <code>foldvec</code> successively splits the input vector before reaching the
-sequential processing size.</p>
-
-<p>So if you look at <a href="https://github.com/clojure/clojure/blob/master/src/clj/clojure/core/reducers.clj#L347-L367">the source code</a> only for vectors and maps actual fork/join parallelism happens, and standard reduce is called for linear lists.</p>
-
-<p>```clojure</p>
-
-<p> clojure.lang.IPersistentVector
- (coll-fold
-  [v n combinef reducef]
-  (foldvec v n combinef reducef))</p>
-
-<p> Object
- (coll-fold
-  [coll n combinef reducef]
-  ;;can't fold, single reduce
-  (reduce reducef (combinef) coll))</p>
-
-<p>```</p>
-
-<p>What I like the most about reducers is that reducer functions are curried, so you can compose them together as in:</p>
-
-<p><code>clojure
-(def red (comp (r/filter even?) (r/map inc)))
-(reduce + (red [1 1 1 2]))
-;=&gt; 6
-</code></p>
-
-<p>It's like the utmost example of the <a href="http://www.infoq.com/presentations/Simple-Made-Easy">simple made easy</a> Hickey's talk, where decomplecting the system, results in a much simpler but powerful
-design at the same time.</p>
-
-<p><em>I'm <a href="http://www.twitter.com/guilespi">guilespi</a> at Twitter</em></p>
-]]></content>
-  </entry>
-  
-  <entry>
-    <title type="html"><![CDATA[Zipkin distributed tracing using Clojure]]></title>
-    <link href="http://guilespi.github.com/blog/2013/11/28/zipkin-distributed-tracing-using-clojure/"/>
-    <updated>2013-11-28T13:05:00-02:00</updated>
-    <id>http://guilespi.github.com/blog/2013/11/28/zipkin-distributed-tracing-using-clojure</id>
-    <content type="html"><![CDATA[<p>When you have a system with many moving parts it's usually difficult trying to understand which one of those pieces is the culprit,
-say for instance your home page is taking 3 seconds to render and you're losing customers, what the hell is going on?</p>
-
-<p>Whether you're using Memcache, Redis, RabbitMQ or a custom distributed service, if you're trying to scale your shit up, you probably have many pieces or boxes involved.</p>
-
-<p>At least that's what happens <a href="http://highscalability.com/blog/2013/7/8/the-architecture-twitter-uses-to-deal-with-150m-active-users.html">at Twitter</a>, so they've come up with <a href="http://twitter.github.io/zipkin/">a solution called Zipkin</a> to trace distributed operations,
-that is, an operation that is potentially solved using many different nodes.</p>
-
-<p><em>Twitter Architecture</em>
-<img class="center" src="/images/blog/twitter_arch.png" width="680" height="780" title="'Twitter Architecture'" ></p>
-
-<p>Having dealt with distributed logging in the past, reconstructing a distributed operation from logs,
-it's like trying to build a giant jigsaw puzzle in the middle of a Tornado.</p>
-
-<p>The standard strategy is to propagate some <code>operation id</code> and use it anywhere you want
-to track what happened, and that is the essence of what Zipkin does, but in a structured kind of way.</p>
-
-<h1>Zipkin</h1>
-
-<p>Zipkin was modelled after <a href="http://research.google.com/pubs/pub36356.html">Google Dapper</a> paper on distributed tracing and basically gives you two things:</p>
-
-<ul>
-<li>Trace Collection</li>
-<li>Trace Querying</li>
-</ul>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">timemonth</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">timebase</span><span class="o">-</span><span class="n">timeyear</span><span class="o">*</span><span class="mi">10000</span><span class="p">)</span><span class="o">/</span><span class="mi">100</span><span class="p">)</span>
+</span><span class='line'><span class="n">timeday</span> <span class="o">=</span> <span class="nb">int</span><span class="p">((</span><span class="n">timebase</span><span class="o">-</span><span class="n">timeyear</span><span class="o">*</span><span class="mi">10000</span><span class="o">-</span><span class="n">timemonth</span><span class="o">*</span><span class="mi">100</span><span class="p">))</span>
+</span><span class='line'><span class="n">timehour</span> <span class="o">=</span> <span class="mi">16</span>
+</span></code></pre></td></tr></table></div></figure>
 
 
-<p><em>Zipkin Architecture</em>
-<img class="center" src="/images/blog/zipkin_arch.png" width="680" height="780" title="'Zipkin Architecture'" ></p>
+<p>I&#8217;ve translated that into these two functions:</p>
 
-<p>The architecture looks complex but it ain't that much, since you can avoid using <code>Scribe</code>, <code>Cassandra</code>, <code>Zookeeper</code>
-and pretty much everything related to scaling the tracing platform itself.</p>
+<div><script src='https://gist.github.com/3971076.js'></script>
+<noscript><pre><code>(defn select-value
+  &quot;Given a dataset indexed by date, returns the value corresponding to a specified column
+  if existent for a specific date&quot;
+  [ds column date]
+  (let [row (ds {:Date date})]
+    (when-not (nil? row) (incanter.core/$ 0 column row))))
 
-<p>Since the trace collector <em>speaks</em> the Scribe protocol you can trace directly to the collector, and you can also use
-local disk storage for tracing and avoid a distributed database like Cassandra, it's an easy way
-to get your feet wet without having to setup a cluster to peek a few traces.</p>
-
-<h1>Tracing</h1>
-
-<p>There are a couple entities involved in Zipkin tracing which you should know before moving forward:</p>
-
-<p><strong>Trace</strong></p>
-
-<p>A trace is a particular operation which may occur in many different nodes and be composed on many different Spans.</p>
-
-<p><strong>Span</strong></p>
-
-<p>A span represents a sub-operation for the Trace, it can be a different service or a different stage in the operation process.
-Also, spans have a hierarchy, so a span can be a child of another span.</p>
-
-<p><strong>Annotation</strong></p>
-
-<p>The annotation is how you tag your Spans to actually know what happened, there are two type of spans:</p>
-
-<ul>
-<li>Timestamp</li>
-<li>Binary</li>
-</ul>
+(defn get-data
+  &quot;Given a list of `symbols`, its data and a list of specific `timestamps`, builds a matrix(sequence)
+  with each column corresponding to a stock and the value extracted using `column` 
+  :Date        AAPL    GOOG    WFC
+  2012-02-01   54.1    33.1    25.0
+  2012-02-02   56.3    33.4    22.9&quot;
+  [timestamps symbols column symbols-data time-of-day]
+  (let [grouped-data (reduce (fn [m, s] (assoc m (s 0) (incanter.core/$group-by :Date (s 1)))) {} symbols-data)]
+    (for [t timestamps]
+      (let [unparsed-date (unparse (formatters :year-month-day) t)]
+        (reduce #(merge %1 {(%2 0) (select-value (%2 1) column unparsed-date)}) {:Date (to-long t)} grouped-data)))))</code></pre></noscript></div>
 
 
-<p>Timestamp spans are used for tracing time related stuff, and Binary annotations are used to tag your operation with a particular context,
-which is useful for filtering later.</p>
+<p>In this case Clojure shines, the <a href="https://gist.github.com/3971102">original function</a> is almost 300 lines of code. I&#8217;m missing a couple of checks but it&#8217;s not bad for a rookie, I think.</p>
 
-<p>For instance you can have a new <em>Trace</em> for each home page request, which decomposes in the <em>Memcache Span</em>
-the <em>Postgres Span</em> and the <em>Computation Span</em>, each of those
-with their particular <em>Start Annotation</em> and <em>Finish Annotation</em>.</p>
+<p>The helper function <code>select-value</code> is there in order to avoid an exception when trying to find stock data for a non existent date. Also the function returns <code>:Date</code> as a double since it&#8217;s easier to handle later for charting.</p>
 
-<h1>API</h1>
+<p><strong>Charting</strong></p>
 
-<p>Zipkin is programmed in Scala and uses thrift, since it's assumed you're going to have distributed operations,
-the <em>official client</em> is <a href="http://twitter.github.io/finagle/">Finagle</a>, which is kind of a RPC system for the JVM, but at least for me, it's quite ugly.</p>
+<p>Charting with Incanter is straightforward, there a subtle difference with python since you need to add each series one by one. So what python is doing here charting multiple series at once</p>
 
-<p>Main reason is that it makes you feel that if you want to use Zipkin you must use a <em>Distributed Framework</em>, which is not at all necessary.
-For a moment I almost felt like <a href="http://en.wikipedia.org/wiki/Common_Object_Request_Broker_Architecture">Corba</a> and <a href="http://en.wikipedia.org/wiki/Distributed_Component_Object_Model">DCOM</a> were coming back from the grave trying to lure me into the abyss.</p>
+<figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">newtimestamps</span> <span class="o">=</span> <span class="n">close</span><span class="o">.</span><span class="n">index</span>
+</span><span class='line'><span class="n">pricedat</span> <span class="o">=</span> <span class="n">close</span><span class="o">.</span><span class="n">values</span> <span class="c"># pull the 2D ndarray out of the pandas object</span>
+</span><span class='line'><span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">newtimestamps</span><span class="p">,</span><span class="n">pricedat</span><span class="p">)</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>There's also libraries for <a href="https://rubygems.org/gems/finagle-thrift">Ruby</a> and <a href="https://github.com/racker/restkin">Python</a> but none of them felt quite right to me,
-for Ruby you either use Finagle or you use Thrift, but there's no actual Zipkin library,
-for Python you have <a href="https://github.com/racker/tryfer">Tryfer</a> which is good and <a href="https://github.com/racker/restkin">Restkin</a> which is a REST API on top of it.</p>
 
-<h1>Clojure</h1>
+<p>We need a little function to solve it with Incanter. Each iteration gets reduced into the next with all the series accumulated in one chart.</p>
 
-<p>In the process of understanding what Zipkin can do for you (that means <em>me</em>) I <a href="https://github.com/guilespi/clj-zipkin">hacked a client</a> for
-Clojure using <a href="https://github.com/livingsocial/clj-scribe/">clj-scribe</a> and <a href="https://github.com/xsc/thrift-clj">clj-thrift</a> which made the process almost painless.</p>
+<figure class='code'><figcaption><span>creates multiple time-series at once</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">multi-series-chart</span>
+</span><span class='line'>  <span class="s">&quot;Creates a xy-chart with multiple series extracted from column data</span>
+</span><span class='line'><span class="s">  as specified by series parameter&quot;</span>
+</span><span class='line'>  <span class="p">[{</span><span class="ss">:keys</span> <span class="p">[</span><span class="nv">series</span> <span class="nv">title</span> <span class="nv">x-label</span> <span class="nv">y-label</span> <span class="nv">data</span><span class="p">]}]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">chart</span> <span class="p">(</span><span class="nf">incanter.charts/time-series-plot</span> <span class="ss">:Date</span> <span class="p">(</span><span class="nb">first </span><span class="nv">series</span><span class="p">)</span>
+</span><span class='line'>                                                 <span class="ss">:x-label</span> <span class="nv">x-label</span>
+</span><span class='line'>                                                 <span class="ss">:y-label</span> <span class="nv">y-label</span>
+</span><span class='line'>                                                 <span class="ss">:title</span> <span class="nv">title</span>
+</span><span class='line'>                                                 <span class="ss">:series-label</span> <span class="p">(</span><span class="nb">first </span><span class="nv">series</span><span class="p">)</span>
+</span><span class='line'>                                                 <span class="ss">:legend</span> <span class="nv">true</span>
+</span><span class='line'>                                                 <span class="ss">:data</span> <span class="nv">data</span><span class="p">)]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nb">reduce </span><span class="o">#</span><span class="p">(</span><span class="nf">incanter.charts/add-lines</span> <span class="nv">%1</span> <span class="ss">:Date</span> <span class="nv">%2</span> <span class="ss">:series-label</span> <span class="nv">%2</span> <span class="ss">:data</span> <span class="nv">data</span><span class="p">)</span> <span class="nv">chart</span> <span class="p">(</span><span class="nb">rest </span><span class="nv">series</span><span class="p">))))</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>It comes with a ring handler so you can trace your incoming requests out of the box.</p>
 
-<p>```clojure
- (require '[clj-zipkin.middleware :as m])</p>
+<p><strong>Data Mangling</strong></p>
 
-<p>   (defroutes routes</p>
+<p>Incanter has <em>a lot</em> of built-in functions and helpers to operate on your data, unfortunately I couldn&#8217;t use one of the many options for operating
+on a matrix, or even <code>$=</code>, since the data we&#8217;re processing has many <code>nil</code> values inside the dataset for dates the stock didn&#8217;t trade which raises an exception when
+treated as a number, which is what to-matrix does, tries to create an array of Doubles.</p>
 
-<pre><code> (GET "/" [] "&lt;h1&gt;Hello World&lt;/h1&gt;")
- (route/not-found "&lt;h1&gt;Page not found&lt;/h1&gt;"))
-</code></pre>
+<p>There&#8217;s one more downside and it&#8217;s we need to keep the <code>:Date</code> column as-is when operating on the dataset, so we need to remove it, operate, and add it later again, what happens to be a beautiful one-liner in python</p>
 
-<p>   (def app</p>
+<figure class='code'><figcaption><span>This attempts a naive normalization dividing each row by the first one. </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'> <span class="n">normdat</span> <span class="o">=</span> <span class="n">pricedat</span><span class="o">/</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">0</span><span class="p">,:]</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<pre><code>   (-&gt; routes
-   (m/request-tracer {:scribe {:host "localhost" :port 9410}
-                      :service "WebServer"})))
-</code></pre>
 
-<p>```</p>
 
-<p><em>Zipkin Web Analyzer</em>
-<img class="center" src="/images/blog/clj-zipkin-sample.png" width="580" height="680" title="'Zipkin Sample'" ></p>
 
-<p>It's far from perfect, undocumented and incomplete, but at least it's free :)</p>
+<figure class='code'><figcaption><span>Or the daily return function. </span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">dailyrets</span> <span class="o">=</span> <span class="p">(</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">1</span><span class="p">:,:]</span><span class="o">/</span><span class="n">pricedat</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,:])</span> <span class="o">-</span> <span class="mi">1</span>
+</span></code></pre></td></tr></table></div></figure>
 
-<p>Give it a try and let me know what you think.</p>
 
-<p><em>I'm <a href="http://www.twitter.com/guilespi">guilespi</a> at Twitter</em></p>
+<p>I ended up writing from scratch the iteration and function applying code.</p>
+
+<div><script src='https://gist.github.com/3971236.js'></script>
+<noscript><pre><code>
+(defmacro apply-filtered
+  &quot;Given two sequences, apply a function to each pair of elements when condition is met
+  anaphoras n and m exists for each indexed element
+
+  e.g. (apply-filtered / [1 2 3] [1 0 3] when (&gt; m 0)) =&gt; (1 nil 1)
+  &quot;
+  [op a b &amp; condition]
+  `(for [x# (range (count ~a))]
+    (let [n# (nth ~a x#)
+          m# (nth ~b x#)]
+      (when (~(second condition) n# m#)
+        (~op n# m#)))))
+
+(defmacro apply-rows
+  &quot;Apply an operation to each row of the dataset excluding :Date column
+   A start row and a condition must be given
+
+  .e.g Divide each row by vector [1 0 3] starting from 0 validating divide by zero
+    (apply-rows ds (/ [1 2 3]) 0 (fn [n m] (&gt; m 0))&quot;
+  [data operation start cond]
+  `(let [raw-data# (incanter.core/$ :all [:not :Date] ~data)
+        raw-cols# (incanter.core/col-names raw-data#)
+        dates# (incanter.core/$ :all :Date ~data)] 
+       (incanter.core/col-names
+        (incanter.core/conj-cols
+         (for [~&#39;i (range ~start (incanter.core/nrow raw-data#))]
+           (apply-filtered
+                      ~(first operation)
+                      (vec (incanter.core/$ ~&#39;i [:not :Date] raw-data#))
+                      ~(second operation)
+                      :when ~cond))
+         dates#) (conj raw-cols# :Date))))
+</code></pre></noscript></div>
+
+
+<p>Maybe there&#8217;s an easier way but I couldn&#8217;t think of it, if you know a better way please drop me a line!</p>
+
+<p>Now normalization and daily-returns are at least manageable.</p>
+
+<figure class='code'><figcaption><span>Normalization and Daily Returns</span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
+<span class='line-number'>2</span>
+<span class='line-number'>3</span>
+<span class='line-number'>4</span>
+<span class='line-number'>5</span>
+<span class='line-number'>6</span>
+<span class='line-number'>7</span>
+<span class='line-number'>8</span>
+<span class='line-number'>9</span>
+<span class='line-number'>10</span>
+<span class='line-number'>11</span>
+<span class='line-number'>12</span>
+<span class='line-number'>13</span>
+<span class='line-number'>14</span>
+</pre></td><td class='code'><pre><code class='clojure'><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">normalize</span>
+</span><span class='line'>  <span class="s">&quot;Divide each row in a dataset by the first row&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">ds</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="k">let </span><span class="p">[</span><span class="nv">first-row</span> <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nf">incanter.core/$</span> <span class="mi">0</span> <span class="p">[</span><span class="ss">:not</span> <span class="ss">:Date</span><span class="p">]</span> <span class="nv">ds</span><span class="p">))]</span>
+</span><span class='line'>    <span class="p">(</span><span class="nf">apply-rows</span> <span class="nv">ds</span> <span class="p">(</span><span class="nb">/ </span><span class="nv">first-row</span><span class="p">)</span> <span class="mi">0</span> <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">and </span><span class="p">(</span><span class="nb">not-any? nil? </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">])</span> <span class="p">(</span><span class="nb">&gt; </span><span class="nv">m</span> <span class="mi">0</span><span class="p">))))))</span>
+</span><span class='line'>
+</span><span class='line'>
+</span><span class='line'><span class="p">(</span><span class="kd">defn </span><span class="nv">daily-rets</span>
+</span><span class='line'>  <span class="s">&quot;Daily returns&quot;</span>
+</span><span class='line'>  <span class="p">[</span><span class="nv">data</span><span class="p">]</span>
+</span><span class='line'>  <span class="p">(</span><span class="nf">apply-rows</span> <span class="nv">data</span>
+</span><span class='line'>            <span class="p">((</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">- </span><span class="p">(</span><span class="nb">/ </span><span class="nv">n</span> <span class="nv">m</span><span class="p">)</span> <span class="mi">1</span><span class="p">))</span> <span class="p">(</span><span class="nf">vec</span> <span class="p">(</span><span class="nf">incanter.core/$</span> <span class="p">(</span><span class="nb">- </span><span class="nv">i</span> <span class="mi">1</span><span class="p">)</span> <span class="p">[</span><span class="ss">:not</span> <span class="ss">:Date</span><span class="p">]</span> <span class="nv">data</span><span class="p">)))</span>
+</span><span class='line'>            <span class="mi">1</span>
+</span><span class='line'>            <span class="p">(</span><span class="k">fn </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">]</span> <span class="p">(</span><span class="nb">and </span><span class="p">(</span><span class="nb">not-any? nil? </span><span class="p">[</span><span class="nv">n</span> <span class="nv">m</span><span class="p">])</span> <span class="p">(</span><span class="nb">&gt; </span><span class="nv">m</span> <span class="mi">0</span><span class="p">)))))</span>
+</span></code></pre></td></tr></table></div></figure>
+
+
+<p>Having the helper functions done, running of the tutorial is almost declarative.</p>
+
+<div><script src='https://gist.github.com/3971246.js'></script>
+<noscript><pre><code>(defn run
+  []
+  (let [symbols [&quot;AAPL&quot;,&quot;GLD&quot;,&quot;GOOG&quot;,&quot;$SPX&quot;,&quot;XOM&quot;]
+        start-day (date-time 2012 1 1)
+        end-day (date-time 2012 12 31)
+        time-of-day (hours 16)
+        timestamps (get-NYSE-days start-day end-day time-of-day)
+        symbols-data (read-symbols-data &quot;Yahoo&quot; symbols)
+        adj-close-data (incanter.core/to-dataset
+                        (get-data timestamps symbols (keyword &quot;Adj Close&quot;) symbols-data time-of-day))]
+    (do
+      ;;first chart of the tutorial
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Adjusted Close&quot;
+                                               :title &quot;Adjusted close data&quot;
+                                               :data adj-close-data}))
+      ;;second chart of the tutorial
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Adjusted Close&quot;
+                                               :title &quot;Normalized close data&quot;
+                                               :data (normalize adj-close-data)}))
+      ;;daily returns
+      (incanter.core/view (multi-series-chart {:series symbols
+                                               :x-label &quot;Date&quot;
+                                               :y-label &quot;Return&quot;
+                                               :title &quot;Daily Returns&quot;
+                                               :data (daily-rets adj-close-data)}))
+      ;;quotes comparison with scatter plot
+      (incanter.core/view (incanter.charts/scatter-plot
+                           &quot;AAPL&quot; &quot;GOOG&quot;
+                           :x-label &quot;AAPL&quot;
+                           :y-label &quot;GOOG&quot;
+                           :legend true
+                           :data (normalize adj-close-data)
+                           )))))</code></pre></noscript></div>
+
+
+<p>If you wanna take a look at the whole thing together here&#8217;s the <a href="https://gist.github.com/3971253">gist</a>, I may create a repo later.</p>
+
+<p><img class="center" src="http://guilespi.github.com/images/blog/chartincanter.png" width="380" height="480" title="'Incanter charting finance data'" ></p>
+
+<p>Please remember NumPy is way much faster than Clojure since it links <a href="http://www.netlib.org/lapack/">BLAS/Lapack</a> libraries.</p>
+
+<p><em>Follow me on <a href="http://www.twitter.com/guilespi">twitter</a></em></p>
 ]]></content>
   </entry>
   
